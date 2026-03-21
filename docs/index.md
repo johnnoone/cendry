@@ -4,41 +4,12 @@ A Firestore ODM for Python. Typed models, composable filters, sync and async.
 
 ---
 
-<div class="grid cards" markdown>
-
--   :material-school:{ .lg .middle } **Tutorials**
-
-    ---
-
-    Learn Cendry step by step.
-
-    [:octicons-arrow-right-24: First steps](tutorials/first-steps.md)
-
--   :material-directions:{ .lg .middle } **How-To Guides**
-
-    ---
-
-    Solve specific problems.
-
-    [:octicons-arrow-right-24: How-to guides](how-to/index.md)
-
--   :material-book-open-variant:{ .lg .middle } **Reference**
-
-    ---
-
-    Technical details of every class and function.
-
-    [:octicons-arrow-right-24: API reference](reference/index.md)
-
--   :material-lightbulb:{ .lg .middle } **Explanation**
-
-    ---
-
-    Understand the design and architecture.
-
-    [:octicons-arrow-right-24: Explanation](explanation/index.md)
-
-</div>
+| | |
+|---|---|
+| **[Tutorials](tutorials/index.md)** | Learn Cendry step by step. Start here if you're new. |
+| **[How-To Guides](how-to/index.md)** | Practical recipes for common tasks. |
+| **[Reference](reference/index.md)** | Technical details of every class and function. |
+| **[Explanation](explanation/index.md)** | Understand the design and architecture. |
 
 ## Installation
 
