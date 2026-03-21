@@ -730,3 +730,69 @@ def test_create_validates_required_fields(mock_firestore_client: MagicMock):
     ctx = Cendry(client=mock_firestore_client)
     with pytest.raises(CendryError, match="Required fields are None"):
         ctx.create(city)
+
+
+# --- delete ---
+
+
+def test_delete_by_instance(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    ctx = Cendry(client=mock_firestore_client)
+
+    ctx.delete(city)
+
+    doc_ref = mock_firestore_client.collection.return_value.document
+    doc_ref.assert_called_with("SF")
+    doc_ref.return_value.delete.assert_called_once()
+
+
+def test_delete_by_instance_no_id_raises(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA)  # id=None
+    ctx = Cendry(client=mock_firestore_client)
+
+    with pytest.raises(CendryError, match="Cannot delete a model instance with id=None"):
+        ctx.delete(city)
+
+
+def test_delete_by_class_and_id(mock_firestore_client: MagicMock):
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.delete(City, "SF")
+
+    doc_ref = mock_firestore_client.collection.return_value.document
+    doc_ref.assert_called_with("SF")
+    doc_ref.return_value.delete.assert_called_once()
+
+
+def test_delete_by_class_silent_when_missing(mock_firestore_client: MagicMock):
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.delete(City, "NOPE")  # should not raise
+
+
+def test_delete_by_class_must_exist_raises(mock_firestore_client: MagicMock):
+    doc = make_mock_document("NOPE", {}, exists=False)
+    mock_firestore_client.collection.return_value.document.return_value.get.return_value = doc
+
+    ctx = Cendry(client=mock_firestore_client)
+    with pytest.raises(DocumentNotFoundError):
+        ctx.delete(City, "NOPE", must_exist=True)
+
+
+def test_delete_by_class_must_exist_passes(mock_firestore_client: MagicMock):
+    doc = make_mock_document("SF", SF_DATA)
+    mock_firestore_client.collection.return_value.document.return_value.get.return_value = doc
+
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.delete(City, "SF", must_exist=True)
+
+    mock_firestore_client.collection.return_value.document.return_value.delete.assert_called_once()
+
+
+def test_delete_with_parent(mock_firestore_client: MagicMock):
+    parent = City(**SF_DATA, id="SF")
+    parent_doc = mock_firestore_client.collection.return_value.document.return_value
+    sub_doc_ref = parent_doc.collection.return_value.document.return_value
+
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.delete(Neighborhood, "MISSION", parent=parent)
+
+    sub_doc_ref.delete.assert_called_once()

@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Any, Self, TypeVar
+from typing import Any, Self, TypeVar, overload
 
 from google.cloud.firestore import Client
 from google.cloud.firestore_v1.base_query import And as FsAnd
@@ -320,6 +320,47 @@ class Cendry(_BaseCendry):
         if instance.id is None:
             instance.id = doc_ref.id
         return doc_ref.id
+
+    @overload
+    def delete(self, instance: Model, *, parent: Model | None = None) -> None: ...
+    @overload
+    def delete(
+        self,
+        model_class: type[T],
+        doc_id: str,
+        *,
+        parent: Model | None = None,
+        must_exist: bool = False,
+    ) -> None: ...
+
+    def delete(
+        self,
+        instance_or_class: Model | type[T],
+        doc_id: str | None = None,
+        *,
+        parent: Model | None = None,
+        must_exist: bool = False,
+    ) -> None:
+        """Delete a document by instance or by class + ID.
+
+        Args:
+            instance_or_class: A Model instance, or a Model class.
+            doc_id: Document ID (required when passing a class).
+            parent: Parent document for subcollection deletes.
+            must_exist: If True, raise DocumentNotFoundError when the document doesn't exist.
+        """
+        if isinstance(instance_or_class, Model):
+            if instance_or_class.id is None:
+                raise CendryError("Cannot delete a model instance with id=None")
+            col_ref = self._get_collection_ref(type(instance_or_class), parent)
+            col_ref.document(instance_or_class.id).delete()
+        else:
+            col_ref = self._get_collection_ref(instance_or_class, parent)
+            if must_exist:
+                doc = col_ref.document(doc_id).get()
+                if not doc.exists:
+                    raise DocumentNotFoundError(instance_or_class.__collection__, doc_id)
+            col_ref.document(doc_id).delete()
 
 
 class AsyncCendry(_BaseCendry):
