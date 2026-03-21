@@ -55,7 +55,7 @@ def test_field_filter_result_repr():
     from cendry.model import FieldFilterResult
 
     f = FieldFilterResult("state", "==", "CA")
-    assert repr(f) == "FieldFilter(\"state\", \"==\", 'CA')"
+    assert repr(f) == 'FieldFilter("state", "==", \'CA\')'
 
 
 def test_field_filter_result_repr_int():

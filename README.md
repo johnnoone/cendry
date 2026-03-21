@@ -38,6 +38,7 @@ class City(Model, collection="cities"):
 - `Map` — embedded data (Firestore map), no collection, no `id`
 - `Field[T]` — typed field descriptor
 - Every `Model` has an `id: str | None` field (Firestore document ID)
+- All fields are keyword-only
 
 ### Query Documents
 
@@ -46,17 +47,16 @@ class City(Model, collection="cities"):
 ```python
 from cendry import Cendry
 
-context = Cendry()
+with Cendry() as ctx:
+    # Get by ID (raises DocumentNotFoundError if missing)
+    city = ctx.get(City, "SF")
 
-# Get by ID (raises DocumentNotFoundError if missing)
-city = context.get(City, "SF")
+    # Find by ID (returns None if missing)
+    city = ctx.find(City, "SF")
 
-# Find by ID (returns None if missing)
-city = context.find(City, "SF")
-
-# Select with filters
-for city in context.select(City, City.state.eq("CA"), limit=10):
-    print(city.name)
+    # Select with filters
+    for city in ctx.select(City, City.state == "CA", limit=10):
+        print(city.name)
 ```
 
 #### Async
@@ -64,13 +64,12 @@ for city in context.select(City, City.state.eq("CA"), limit=10):
 ```python
 from cendry import AsyncCendry
 
-context = AsyncCendry()
+async with AsyncCendry() as ctx:
+    city = await ctx.get(City, "SF")
+    city = await ctx.find(City, "SF")
 
-city = await context.get(City, "SF")
-city = await context.find(City, "SF")
-
-async for city in context.select(City, City.state.eq("CA")):
-    print(city.name)
+    async for city in ctx.select(City, City.state == "CA"):
+        print(city.name)
 ```
 
 ### Custom Client
@@ -78,8 +77,8 @@ async for city in context.select(City, City.state.eq("CA")):
 ```python
 from google.cloud.firestore import Client, AsyncClient
 
-context = Cendry(client=Client(project="my-project"))
-context = AsyncCendry(client=AsyncClient(project="my-project"))
+ctx = Cendry(client=Client(project="my-project"))
+ctx = AsyncCendry(client=AsyncClient(project="my-project"))
 ```
 
 ## Filters
@@ -89,22 +88,29 @@ context = AsyncCendry(client=AsyncClient(project="my-project"))
 ```python
 from cendry import FieldFilter
 
-context.select(City, FieldFilter("state", "==", "CA"))
-context.select(City, FieldFilter("regions", "array-contains", "west_coast"))
-context.select(City, FieldFilter("country", "in", ["USA", "Japan"]))
+ctx.select(City, FieldFilter("state", "==", "CA"))
+ctx.select(City, FieldFilter("regions", "array-contains", "west_coast"))
+ctx.select(City, FieldFilter("country", "in", ["USA", "Japan"]))
 ```
 
 Operators: `<`, `<=`, `==`, `>`, `>=`, `!=`, `array-contains`, `array-contains-any`, `in`, `not-in`
 
-### Field Descriptors (typed)
+### Field Descriptors
+
+Python operators work directly:
 
 ```python
-City.state.eq("CA")
-City.state.ne("CA")
-City.population.gt(1000000)
-City.population.gte(1000000)
-City.population.lt(500000)
-City.population.lte(500000)
+City.state == "CA"
+City.state != "CA"
+City.population > 1_000_000
+City.population >= 1_000_000
+City.population < 500_000
+City.population <= 500_000
+```
+
+Named methods for Firestore-specific operators:
+
+```python
 City.regions.array_contains("west_coast")
 City.regions.array_contains_any(["west_coast", "east_coast"])
 City.country.is_in(["USA", "Japan"])
@@ -115,19 +121,52 @@ City.country.not_in(["China"])
 
 ```python
 # & (AND) and | (OR)
-City.state.ne("CA") & City.population.gt(1000000)
-City.state.eq("CA") | (City.country.eq("Japan") & City.population.gt(1000000))
+City.state != "CA" & City.population > 1_000_000
+City.state == "CA" | (City.country == "Japan" & City.population > 1_000_000)
 
 # Explicit
 from cendry import And, Or
 
 Or(
-    City.state.eq("CA"),
-    And(City.country.eq("Japan"), City.population.gt(1000000)),
+    City.state == "CA",
+    And(City.country == "Japan", City.population > 1_000_000),
 )
 
 # Multiple varargs — implicit AND
-context.select(City, City.state.eq("CA"), City.population.gt(1000000))
+ctx.select(City, City.state == "CA", City.population > 1_000_000)
+```
+
+## Query Object
+
+`select()` and `select_group()` return a `Query` (sync) or `AsyncQuery` (async) with convenience methods:
+
+```python
+query = ctx.select(City, City.state == "CA")
+
+# Iterate (streaming)
+for city in query:
+    print(city.name)
+
+# Chainable filtering
+query = ctx.select(City).filter(City.state == "CA").filter(City.population > 500_000)
+
+# Also accepts a list
+query = ctx.select(City).filter([City.state == "CA", City.population > 500_000])
+
+# Convenience methods
+cities = query.to_list()      # list[City]
+city = query.first()          # City | None
+city = query.one()            # City (raises if not exactly 1)
+exists = query.exists()       # bool
+n = query.count()             # int (Firestore aggregation)
+```
+
+Async:
+
+```python
+cities = await query.to_list()
+city = await query.first()
+n = await query.count()
 ```
 
 ## Ordering and Pagination
@@ -135,11 +174,11 @@ context.select(City, City.state.eq("CA"), City.population.gt(1000000))
 ```python
 from cendry import Asc, Desc
 
-context.select(City,
-    City.state.eq("CA"),
+ctx.select(City,
+    City.state == "CA",
     order_by=[Asc(City.population), Desc(City.name)],
     limit=10,
-    start_after={"population": 1000000},
+    start_after={"population": 1_000_000},
 )
 ```
 
@@ -152,18 +191,49 @@ class Neighborhood(Model, collection="neighborhoods"):
     name: Field[str]
     population: Field[int]
 
-city = context.get(City, "SF")
-for n in context.select(Neighborhood, parent=city):
+city = ctx.get(City, "SF")
+for n in ctx.select(Neighborhood, parent=city):
     print(n.name)
 ```
 
 ## Collection Groups
 
 ```python
-# Query across all "neighborhoods" subcollections
-for n in context.select_group(Neighborhood, Neighborhood.population.gt(50000)):
+for n in ctx.select_group(Neighborhood, Neighborhood.population > 50_000):
     print(n.name)
 ```
+
+## from_dict
+
+Construct models from raw dicts (useful for testing):
+
+```python
+from cendry import from_dict
+
+city = from_dict(City, {
+    "name": "SF", "state": "CA", "country": "USA",
+    "capital": False, "population": 870_000, "regions": ["west"],
+})
+
+# With document ID
+city = from_dict(City, {...}, doc_id="123")
+```
+
+Nested `Map` dicts are automatically converted. Raises `TypeError` if required fields are missing.
+
+## Type Validation
+
+`Field[T]` annotations are validated at class definition time. Only Firestore-compatible types are accepted:
+
+```python
+from cendry import register_type
+
+# Register custom types
+register_type(MyCustomClass)
+register_type(lambda cls: hasattr(cls, "__my_protocol__"))
+```
+
+Supported: `str`, `int`, `float`, `bool`, `bytes`, `Decimal`, `datetime`, `GeoPoint`, `DocumentReference`, `list`, `tuple`, `set`, `dict`, `Map`, dataclasses, `TypedDict`, pydantic/attrs/msgspec (if installed).
 
 ## Exceptions
 
@@ -171,7 +241,7 @@ for n in context.select_group(Neighborhood, Neighborhood.population.gt(50000)):
 from cendry import CendryError, DocumentNotFoundError
 
 try:
-    city = context.get(City, "NOPE")
+    city = ctx.get(City, "NOPE")
 except DocumentNotFoundError as e:
     print(e.collection, e.document_id)
 ```

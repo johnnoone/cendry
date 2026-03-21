@@ -44,10 +44,13 @@ def test_from_dict_with_id():
 
 
 def test_from_dict_nested_map():
-    city = from_dict(City, {
-        **CITY_DATA,
-        "mayor": {"name": "London Breed", "since": 2018},
-    })
+    city = from_dict(
+        City,
+        {
+            **CITY_DATA,
+            "mayor": {"name": "London Breed", "since": 2018},
+        },
+    )
     assert isinstance(city.mayor, Mayor)
     assert city.mayor.name == "London Breed"
 

@@ -238,3 +238,81 @@ async def test_async_query_count(mock_firestore_client: MagicMock):
     mock_firestore_client.collection.return_value.count.return_value = count_mock
     ctx = AsyncCendry(client=mock_firestore_client)
     assert await ctx.select(City).count() == 7
+
+
+@pytest.mark.anyio
+async def test_async_query_filter(mock_firestore_client: MagicMock):
+    docs = [make_mock_document("SF", SF_DATA)]
+
+    async def mock_stream():
+        for d in docs:
+            yield d
+
+    where_mock = MagicMock()
+    where_mock.stream = mock_stream
+    mock_firestore_client.collection.return_value.where.return_value = where_mock
+    ctx = AsyncCendry(client=mock_firestore_client)
+    cities = await ctx.select(City).filter(City.state.eq("CA")).to_list()
+    assert len(cities) == 1
+
+
+@pytest.mark.anyio
+async def test_async_query_filter_list(mock_firestore_client: MagicMock):
+    docs = [make_mock_document("SF", SF_DATA)]
+
+    async def mock_stream():
+        for d in docs:
+            yield d
+
+    where_mock2 = MagicMock()
+    where_mock2.stream = mock_stream
+    where_mock = MagicMock()
+    where_mock.where.return_value = where_mock2
+    mock_firestore_client.collection.return_value.where.return_value = where_mock
+    ctx = AsyncCendry(client=mock_firestore_client)
+    query = ctx.select(City).filter([City.state.eq("CA"), City.population.gt(100)])
+    cities = await query.to_list()
+    assert len(cities) == 1
+
+
+@pytest.mark.anyio
+async def test_async_query_first_empty(mock_firestore_client: MagicMock):
+    async def mock_stream():
+        return
+        yield
+
+    limit_mock = MagicMock()
+    limit_mock.stream = mock_stream
+    mock_firestore_client.collection.return_value.limit.return_value = limit_mock
+    ctx = AsyncCendry(client=mock_firestore_client)
+    assert await ctx.select(City).first() is None
+
+
+@pytest.mark.anyio
+async def test_async_query_one_empty(mock_firestore_client: MagicMock):
+    async def mock_stream():
+        return
+        yield
+
+    limit_mock = MagicMock()
+    limit_mock.stream = mock_stream
+    mock_firestore_client.collection.return_value.limit.return_value = limit_mock
+    ctx = AsyncCendry(client=mock_firestore_client)
+    with pytest.raises(DocumentNotFoundError):
+        await ctx.select(City).one()
+
+
+@pytest.mark.anyio
+async def test_async_query_one_multiple(mock_firestore_client: MagicMock):
+    docs = [make_mock_document("SF", SF_DATA), make_mock_document("LA", SF_DATA)]
+
+    async def mock_stream():
+        for d in docs:
+            yield d
+
+    limit_mock = MagicMock()
+    limit_mock.stream = mock_stream
+    mock_firestore_client.collection.return_value.limit.return_value = limit_mock
+    ctx = AsyncCendry(client=mock_firestore_client)
+    with pytest.raises(CendryError, match="more than one"):
+        await ctx.select(City).one()

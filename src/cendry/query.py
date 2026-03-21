@@ -90,7 +90,7 @@ class Query[T: Model]:
     def count(self) -> int:
         """Count matching documents using Firestore aggregation."""
         result = self._query.count().get()
-        return result[0][0].value
+        return int(result[0][0].value)
 
 
 class AsyncQuery[T: Model]:
@@ -131,9 +131,7 @@ class AsyncQuery[T: Model]:
 
     async def first(self) -> T | None:
         """Fetch the first matching document, or None."""
-        async for item in AsyncQuery(
-            self._query.limit(1), self._model_class, self._apply_filter
-        ):
+        async for item in AsyncQuery(self._query.limit(1), self._model_class, self._apply_filter):
             return item
         return None
 
@@ -157,4 +155,4 @@ class AsyncQuery[T: Model]:
     async def count(self) -> int:
         """Count matching documents using Firestore aggregation."""
         result = await self._query.count().get()
-        return result[0][0].value
+        return int(result[0][0].value)
