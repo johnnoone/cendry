@@ -22,7 +22,63 @@ class _BaseCendry:
 
     def _deserialize(self, model_class: type[T], doc_id: str, data: dict[str, Any]) -> T:
         """Convert a Firestore document dict to a model instance."""
-        return model_class(id=doc_id, **data)  # type: ignore[call-arg]
+        import dataclasses
+        from typing import get_type_hints
+
+        hints = get_type_hints(model_class, include_extras=True)
+        converted = {}
+        for f in dataclasses.fields(model_class):  # type: ignore[arg-type]
+            if f.name == "id":
+                continue
+            value = data.get(f.name)
+            if value is not None and isinstance(value, dict):
+                hint = hints.get(f.name)
+                inner = self._resolve_map_type(hint)
+                if inner is not None:
+                    value = self._deserialize_map(inner, value)
+            converted[f.name] = value
+
+        return model_class(id=doc_id, **converted)  # type: ignore[call-arg]
+
+    def _resolve_map_type(self, hint: Any) -> type | None:
+        """Resolve a type hint to a concrete Map subclass if applicable."""
+        import types
+        from typing import get_args, get_origin
+
+        from cendry.model import Field, Map
+
+        if hint is None or isinstance(hint, str):
+            return None
+        # Unwrap Field[T]
+        origin = get_origin(hint)
+        if origin is Field:
+            args = get_args(hint)
+            hint = args[0] if args else hint
+        # Unwrap X | None (UnionType)
+        if isinstance(hint, types.UnionType):
+            non_none = [a for a in get_args(hint) if a is not type(None)]
+            if len(non_none) == 1:
+                hint = non_none[0]
+        if isinstance(hint, type) and issubclass(hint, Map):
+            return hint
+        return None
+
+    def _deserialize_map(self, map_class: type, data: dict[str, Any]) -> Any:
+        """Recursively deserialize a Map from a dict."""
+        import dataclasses
+        from typing import get_type_hints
+
+        hints = get_type_hints(map_class, include_extras=True)
+        converted = {}
+        for f in dataclasses.fields(map_class):
+            value = data.get(f.name)
+            if value is not None and isinstance(value, dict):
+                hint = hints.get(f.name)
+                inner = self._resolve_map_type(hint)
+                if inner is not None:
+                    value = self._deserialize_map(inner, value)
+            converted[f.name] = value
+        return map_class(**converted)
 
     def _get_collection_ref(self, model_class: type[T], parent: Model | None = None) -> Any:
         """Get a Firestore collection reference, optionally nested under a parent."""

@@ -7,7 +7,7 @@ import pytest
 from unittest.mock import AsyncMock
 
 from cendry import AsyncCendry, Cendry, DocumentNotFound, FieldFilter
-from tests.conftest import City, Neighborhood, make_mock_document
+from tests.conftest import City, Mayor, Neighborhood, make_mock_document
 
 
 # --- get / find ---
@@ -284,3 +284,43 @@ async def test_async_select_group(mock_firestore_client: MagicMock):
 
     assert len(neighborhoods) == 1
     assert neighborhoods[0].name == "Mission"
+
+
+# --- Nested Map deserialization ---
+
+
+def test_get_with_nested_map(mock_firestore_client: MagicMock):
+    doc = make_mock_document("SF", {
+        "name": "San Francisco",
+        "state": "CA",
+        "country": "USA",
+        "capital": False,
+        "population": 870000,
+        "regions": ["west_coast"],
+        "mayor": {"name": "London Breed", "since": 2018},
+    })
+    mock_firestore_client.collection.return_value.document.return_value.get.return_value = doc
+
+    ctx = Cendry(client=mock_firestore_client)
+    city = ctx.get(City, "SF")
+
+    assert isinstance(city.mayor, Mayor)
+    assert city.mayor.name == "London Breed"
+    assert city.mayor.since == 2018
+
+
+def test_get_with_null_nested_map(mock_firestore_client: MagicMock):
+    doc = make_mock_document("SF", {
+        "name": "San Francisco",
+        "state": "CA",
+        "country": "USA",
+        "capital": False,
+        "population": 870000,
+        "regions": ["west_coast"],
+    })
+    mock_firestore_client.collection.return_value.document.return_value.get.return_value = doc
+
+    ctx = Cendry(client=mock_firestore_client)
+    city = ctx.get(City, "SF")
+
+    assert city.mayor is None
