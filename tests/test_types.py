@@ -376,7 +376,9 @@ def test_kwargs_handler_serialize_called(registry: TypeRegistry):
         pass
 
     registry.register(
-        Money, serialize=lambda v: "serialized", deserialize=lambda v: "deserialized",
+        Money,
+        serialize=lambda v: "serialized",
+        deserialize=lambda v: "deserialized",
     )
     handler = registry.get_handler(Money)
     assert handler is not None

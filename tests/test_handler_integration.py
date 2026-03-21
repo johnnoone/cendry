@@ -110,13 +110,17 @@ class Cart(Model, collection="carts"):
 
 
 def test_deserialize_list_of_handler_type():
-    result = deserialize(Cart, "c1", {
-        "title": "Cart",
-        "items": [
-            {"amount": 10, "currency": "USD"},
-            {"amount": 20, "currency": "EUR"},
-        ],
-    })
+    result = deserialize(
+        Cart,
+        "c1",
+        {
+            "title": "Cart",
+            "items": [
+                {"amount": 10, "currency": "USD"},
+                {"amount": 20, "currency": "EUR"},
+            ],
+        },
+    )
     assert len(result.items) == 2
     assert all(isinstance(m, Money) for m in result.items)
     assert result.items[0].amount == 10
@@ -138,13 +142,17 @@ class Ledger(Model, collection="ledgers"):
 
 
 def test_deserialize_dict_of_handler_type():
-    result = deserialize(Ledger, "l1", {
-        "title": "Ledger",
-        "accounts": {
-            "checking": {"amount": 100, "currency": "USD"},
-            "savings": {"amount": 200, "currency": "EUR"},
+    result = deserialize(
+        Ledger,
+        "l1",
+        {
+            "title": "Ledger",
+            "accounts": {
+                "checking": {"amount": 100, "currency": "USD"},
+                "savings": {"amount": 200, "currency": "EUR"},
+            },
         },
-    })
+    )
     assert isinstance(result.accounts["checking"], Money)
     assert result.accounts["savings"].amount == 200
 

@@ -69,9 +69,7 @@ def _deserialize_value(value: Any, hint: Any, *, enum_by: str = "value") -> Any:
         args = get_args(hint)
         if args:
             if origin is tuple:  # pragma: no cover
-                return tuple(
-                    _deserialize_value(v, a) for v, a in zip(value, args, strict=False)
-                )
+                return tuple(_deserialize_value(v, a) for v, a in zip(value, args, strict=False))
             elem_hint = args[0]
             converted = [_deserialize_value(v, elem_hint) for v in value]
             return set(converted) if origin is set else converted
@@ -166,9 +164,7 @@ def from_dict[T: Model](
     return deserialize(model_class, doc_id, remapped)
 
 
-def _serialize_value(
-    value: Any, hint: Any, *, by_alias: bool, enum_by: str = "value"
-) -> Any:
+def _serialize_value(value: Any, hint: Any, *, by_alias: bool, enum_by: str = "value") -> Any:
     """Serialize a single value, checking handlers, enums, then Map nesting.
 
     Handles containers: list[Money] serializes each element via MoneyHandler.
@@ -206,9 +202,7 @@ def _serialize_value(
         args = get_args(hint)
         if args and len(args) > 1:
             val_hint = args[1]
-            return {
-                k: _serialize_value(v, val_hint, by_alias=by_alias) for k, v in value.items()
-            }
+            return {k: _serialize_value(v, val_hint, by_alias=by_alias) for k, v in value.items()}
 
     # Map nesting
     if isinstance(value, Map):
@@ -224,7 +218,10 @@ def _map_to_dict(instance: Map, *, by_alias: bool) -> dict[str, Any]:
         value = getattr(instance, f.name)
         key = _get_alias(f) if by_alias else f.name
         value = _serialize_value(
-            value, hints.get(f.name), by_alias=by_alias, enum_by=_get_enum_by(f),
+            value,
+            hints.get(f.name),
+            by_alias=by_alias,
+            enum_by=_get_enum_by(f),
         )
         result[key] = value
     return result
