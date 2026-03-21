@@ -3,7 +3,8 @@ import pytest
 import cendry
 from cendry import Field, Map, Model
 from cendry import field as cendry_field
-from cendry.serialize import from_dict
+from cendry.serialize import deserialize, from_dict, to_dict
+from cendry.types import BaseTypeHandler, TypeRegistry
 
 
 class Mayor(Map):
@@ -67,3 +68,64 @@ def test_from_dict_missing_fields_message():
 
 def test_from_dict_exported():
     assert hasattr(cendry, "from_dict")
+
+
+# --- Custom registry tests ---
+
+
+class Celsius:
+    def __init__(self, value: float) -> None:
+        self.value = value
+
+
+class CelsiusHandler(BaseTypeHandler):
+    def serialize(self, value: Celsius) -> float:
+        return value.value
+
+    def deserialize(self, value: float) -> Celsius:
+        return Celsius(value)
+
+
+# Register on default_registry so model definition passes validation
+from cendry.types import default_registry
+
+default_registry.register(Celsius, handler=CelsiusHandler())
+
+
+class Weather(Model, collection="weather"):
+    city: Field[str]
+    temp: Field[Celsius]
+
+
+def test_to_dict_with_custom_registry():
+    custom = TypeRegistry()
+    custom.register(Celsius, handler=CelsiusHandler())
+    weather = Weather(city="SF", temp=Celsius(20.5))
+
+    result = to_dict(weather, registry=custom)
+    assert result["temp"] == 20.5
+
+
+def test_from_dict_with_custom_registry():
+    custom = TypeRegistry()
+    custom.register(Celsius, handler=CelsiusHandler())
+
+    weather = from_dict(Weather, {"city": "SF", "temp": 20.5}, registry=custom)
+    assert isinstance(weather.temp, Celsius)
+    assert weather.temp.value == 20.5
+
+
+def test_deserialize_with_custom_registry():
+    custom = TypeRegistry()
+    custom.register(Celsius, handler=CelsiusHandler())
+
+    weather = deserialize(Weather, "w1", {"city": "SF", "temp": 20.5}, registry=custom)
+    assert isinstance(weather.temp, Celsius)
+    assert weather.temp.value == 20.5
+
+
+def test_to_dict_default_registry_unchanged():
+    """Existing behavior: no registry param uses default_registry."""
+    city = from_dict(City, CITY_DATA)
+    result = to_dict(city)
+    assert result["name"] == "SF"

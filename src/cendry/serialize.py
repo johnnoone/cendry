@@ -4,6 +4,7 @@ import types
 from typing import Any, get_args, get_origin, get_type_hints
 
 from .model import METADATA_ALIAS, METADATA_ENUM_BY, Map, Model
+from .types import TypeRegistry, default_registry
 
 
 @functools.cache
@@ -39,14 +40,14 @@ def resolve_map_type(hint: Any) -> type | None:
     return None
 
 
-def _deserialize_value(value: Any, hint: Any, *, enum_by: str = "value") -> Any:
+def _deserialize_value(
+    value: Any, hint: Any, *, enum_by: str = "value", registry: TypeRegistry
+) -> Any:
     """Deserialize a single value, checking handlers, enums, then Map nesting.
 
     Handles containers: list[Money] deserializes each element via MoneyHandler.
     """
     import enum
-
-    from .types import default_registry
 
     if value is None:
         return None
@@ -54,7 +55,7 @@ def _deserialize_value(value: Any, hint: Any, *, enum_by: str = "value") -> Any:
     # Direct type match (non-container)
     inner_type = _resolve_inner_type(hint)
     if inner_type is not None:
-        handler = default_registry.get_handler(inner_type)
+        handler = registry.get_handler(inner_type)
         if handler is not None:
             return handler.deserialize(value)
         # Enum conversion
@@ -69,21 +70,27 @@ def _deserialize_value(value: Any, hint: Any, *, enum_by: str = "value") -> Any:
         args = get_args(hint)
         if args:
             if origin is tuple:  # pragma: no cover
-                return tuple(_deserialize_value(v, a) for v, a in zip(value, args, strict=False))
+                return tuple(
+                    _deserialize_value(v, a, registry=registry)
+                    for v, a in zip(value, args, strict=False)
+                )
             elem_hint = args[0]
-            converted = [_deserialize_value(v, elem_hint) for v in value]
+            converted = [_deserialize_value(v, elem_hint, registry=registry) for v in value]
             return set(converted) if origin is set else converted
     if origin is dict and isinstance(value, dict):
         args = get_args(hint)
         if args and len(args) > 1:
             val_hint = args[1]
-            return {k: _deserialize_value(v, val_hint) for k, v in value.items()}
+            return {
+                k: _deserialize_value(v, val_hint, registry=registry)
+                for k, v in value.items()
+            }
 
     # Map nesting
     if isinstance(value, dict):
         inner = resolve_map_type(hint)
         if inner is not None:
-            return deserialize_map(inner, value)
+            return deserialize_map(inner, value, registry=registry)
     return value
 
 
@@ -95,26 +102,37 @@ def _get_enum_by(f: dataclasses.Field[Any]) -> str:
     return "value"
 
 
-def deserialize_map(map_class: type, data: dict[str, Any]) -> Any:
+def deserialize_map(map_class: type, data: dict[str, Any], *, registry: TypeRegistry) -> Any:
     """Recursively deserialize a Map from a dict. Always reads by alias."""
     hints = _cached_type_hints(map_class)
     converted: dict[str, Any] = {}
     for f in dataclasses.fields(map_class):
         alias = _get_alias(f)
-        value = _deserialize_value(data.get(alias), hints.get(f.name), enum_by=_get_enum_by(f))
+        value = _deserialize_value(
+            data.get(alias), hints.get(f.name), enum_by=_get_enum_by(f), registry=registry
+        )
         converted[f.name] = value
     return map_class(**converted)
 
 
-def deserialize[T: Model](model_class: type[T], doc_id: str | None, data: dict[str, Any]) -> T:
+def deserialize[T: Model](
+    model_class: type[T],
+    doc_id: str | None,
+    data: dict[str, Any],
+    *,
+    registry: TypeRegistry | None = None,
+) -> T:
     """Convert a Firestore dict to a model instance. Always reads by alias."""
+    registry = registry or default_registry
     hints = _cached_type_hints(model_class)
     converted: dict[str, Any] = {}
     for f in dataclasses.fields(model_class):
         if f.name == "id":
             continue
         alias = _get_alias(f)
-        value = _deserialize_value(data.get(alias), hints.get(f.name), enum_by=_get_enum_by(f))
+        value = _deserialize_value(
+            data.get(alias), hints.get(f.name), enum_by=_get_enum_by(f), registry=registry
+        )
         converted[f.name] = value
     return model_class(id=doc_id, **converted)
 
@@ -125,6 +143,7 @@ def from_dict[T: Model](
     *,
     doc_id: str | None = None,
     by_alias: bool = False,
+    registry: TypeRegistry | None = None,
 ) -> T:
     """Construct a model instance from a dict.
 
@@ -160,11 +179,13 @@ def from_dict[T: Model](
         fields = ", ".join(missing)
         raise TypeError(f"from_dict({model_class.__name__}): missing required fields: {fields}")
     if by_alias:
-        return deserialize(model_class, doc_id, data)
-    return deserialize(model_class, doc_id, remapped)
+        return deserialize(model_class, doc_id, data, registry=registry)
+    return deserialize(model_class, doc_id, remapped, registry=registry)
 
 
-def _serialize_value(value: Any, hint: Any, *, by_alias: bool, enum_by: str = "value") -> Any:
+def _serialize_value(
+    value: Any, hint: Any, *, by_alias: bool, enum_by: str = "value", registry: TypeRegistry
+) -> Any:
     """Serialize a single value, checking handlers, enums, then Map nesting.
 
     Handles containers: list[Money] serializes each element via MoneyHandler.
@@ -173,12 +194,11 @@ def _serialize_value(value: Any, hint: Any, *, by_alias: bool, enum_by: str = "v
 
     if value is None:
         return None
-    from .types import default_registry
 
     # Direct type match
     inner_type = _resolve_inner_type(hint)
     if inner_type is not None:
-        handler = default_registry.get_handler(inner_type)
+        handler = registry.get_handler(inner_type)
         if handler is not None:
             return handler.serialize(value)
         # Enum conversion
@@ -192,24 +212,32 @@ def _serialize_value(value: Any, hint: Any, *, by_alias: bool, enum_by: str = "v
         if args:
             if origin is tuple:  # pragma: no cover
                 return [
-                    _serialize_value(v, a, by_alias=by_alias)
+                    _serialize_value(v, a, by_alias=by_alias, registry=registry)
                     for v, a in zip(value, args, strict=False)
                 ]
             elem_hint = args[0]
-            return [_serialize_value(v, elem_hint, by_alias=by_alias) for v in value]
+            return [
+                _serialize_value(v, elem_hint, by_alias=by_alias, registry=registry)
+                for v in value
+            ]
     if origin is dict and isinstance(value, dict):
         args = get_args(hint)
         if args and len(args) > 1:
             val_hint = args[1]
-            return {k: _serialize_value(v, val_hint, by_alias=by_alias) for k, v in value.items()}
+            return {
+                k: _serialize_value(v, val_hint, by_alias=by_alias, registry=registry)
+                for k, v in value.items()
+            }
 
     # Map nesting
     if isinstance(value, Map):
-        return _map_to_dict(value, by_alias=by_alias)
+        return _map_to_dict(value, by_alias=by_alias, registry=registry)
     return value
 
 
-def _map_to_dict(instance: Map, *, by_alias: bool) -> dict[str, Any]:
+def _map_to_dict(
+    instance: Map, *, by_alias: bool, registry: TypeRegistry
+) -> dict[str, Any]:
     """Convert a Map instance to a dict recursively."""
     hints = _cached_type_hints(type(instance))
     result: dict[str, Any] = {}
@@ -221,6 +249,7 @@ def _map_to_dict(instance: Map, *, by_alias: bool) -> dict[str, Any]:
             hints.get(f.name),
             by_alias=by_alias,
             enum_by=_get_enum_by(f),
+            registry=registry,
         )
         result[key] = value
     return result
@@ -231,6 +260,7 @@ def to_dict(
     *,
     by_alias: bool = False,
     include_id: bool = False,
+    registry: TypeRegistry | None = None,
 ) -> dict[str, Any]:
     """Convert a model/map instance to a dict.
 
@@ -240,11 +270,13 @@ def to_dict(
         instance: Model or Map instance to convert.
         by_alias: If True, use Firestore alias keys. If False (default), use Python field names.
         include_id: If True, include the document ID in the output.
+        registry: Optional TypeRegistry. Uses default if not provided.
 
     Returns:
         Dict representation of the instance.
     """
-    result = _map_to_dict(instance, by_alias=by_alias)
+    registry = registry or default_registry
+    result = _map_to_dict(instance, by_alias=by_alias, registry=registry)
     if not include_id:
         result.pop("id", None)
     return result
