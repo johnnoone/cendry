@@ -1,6 +1,6 @@
 # How to Use Async
 
-Cendry supports async via `AsyncCendry` and `AsyncQuery`, powered by anyio (works with both asyncio and trio).
+Cendry supports async via `AsyncCendry` and `AsyncQuery`, powered by anyio — works with both asyncio and trio.
 
 ## Async context
 
@@ -39,6 +39,22 @@ async for page in ctx.select(City).paginate(page_size=20):
         process(city)
 ```
 
+## Chainable filtering and ordering
+
+Same as sync — `filter()`, `order_by()`, and `limit()` are synchronous methods that return `AsyncQuery`:
+
+```python
+query = (
+    ctx.select(City)
+    .filter(City.state == "CA")
+    .order_by(City.population.desc())
+    .limit(10)
+)
+
+# Only terminal methods are async
+cities = await query.to_list()
+```
+
 ## Custom async client
 
 ```python
@@ -47,8 +63,10 @@ from google.cloud.firestore import AsyncClient
 ctx = AsyncCendry(client=AsyncClient(project="my-project"))
 ```
 
-!!! note
+!!! note "select() is not async"
 
-    `AsyncCendry.select()` and `AsyncCendry.select_group()` are **not** `async def` —
-    they return an `AsyncQuery` synchronously. Only the terminal methods (`to_list()`,
-    `first()`, etc.) and iteration are async.
+    `AsyncCendry.select()` and `AsyncCendry.select_group()` are regular `def` methods — they return an `AsyncQuery` synchronously. Only terminal methods (`to_list()`, `first()`, etc.) and iteration are async.
+
+!!! tip "Same models, same filters"
+
+    Models, fields, and filters are shared between sync and async. You define them once and use them with either `Cendry` or `AsyncCendry`.

@@ -1,6 +1,6 @@
 # How to Use Field Aliases
 
-When the Firestore field name differs from the Python attribute name.
+Use aliases when the Firestore field name differs from your Python attribute name.
 
 ## Define an alias
 
@@ -9,17 +9,21 @@ from cendry import Model, Field, field
 
 class City(Model, collection="cities"):
     name: Field[str] = field(alias="displayName")
-    state: Field[str]
+    state: Field[str]  # no alias — "state" in Firestore
 ```
 
 ## What aliases affect
 
-- **Filters:** `City.name == "SF"` generates `FieldFilter("displayName", ...)`.
-- **Ordering:** `City.name.asc()` sorts by `"displayName"` in Firestore.
-- **Deserialization:** `ctx.get(City, "SF")` reads from the `"displayName"` key.
-- **`to_dict` / `from_dict`:** configurable via `by_alias`.
+| Operation | Behavior |
+|-----------|----------|
+| **Filters** | `City.name == "SF"` generates `FieldFilter("displayName", ...)` |
+| **Ordering** | `City.name.asc()` sorts by `"displayName"` in Firestore |
+| **Deserialization** | `ctx.get(City, "SF")` reads from the `"displayName"` key |
+| **`to_dict` / `from_dict`** | Configurable via `by_alias` parameter |
 
 ## Serialization with aliases
+
+Python names are the default for `to_dict` and `from_dict` — use `by_alias=True` for Firestore names:
 
 ```python
 from cendry import to_dict, from_dict
@@ -31,14 +35,20 @@ to_dict(city)                    # {"name": "SF", ...}
 
 # Firestore field names
 to_dict(city, by_alias=True)     # {"displayName": "SF", ...}
+```
 
-# from_dict: Python names by default
+```python
+# Python names (default)
 from_dict(City, {"name": "SF", "state": "CA"})
 
-# from_dict with Firestore names
+# Firestore names
 from_dict(City, {"displayName": "SF", "state": "CA"}, by_alias=True)
 ```
 
+!!! info "Why Python names are the default"
+
+    `from_dict` and `to_dict` are Python-facing APIs — you're working with Python code, so Python names make sense. Firestore-facing operations (reading documents, applying filters) always use aliases internally.
+
 ## No alias = no change
 
-Fields without `alias=` use the Python name in Firestore. This is backwards compatible.
+Fields without `alias=` use the Python name in Firestore. This is the default and is fully backwards compatible.

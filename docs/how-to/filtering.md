@@ -2,6 +2,8 @@
 
 ## Python operators
 
+The most natural way to filter — use Python comparison operators directly:
+
 ```python
 City.state == "CA"
 City.population > 1_000_000
@@ -11,7 +13,7 @@ City.state != "NY"
 
 ## Named methods
 
-For operators without a Python symbol:
+For Firestore operators that don't have a Python symbol:
 
 ```python
 City.regions.array_contains("west_coast")
@@ -20,6 +22,10 @@ City.country.is_in(["USA", "Japan"])
 City.country.not_in(["China"])
 ```
 
+!!! tip "Explicit equivalents"
+
+    Every operator also has a named method: `.eq()`, `.ne()`, `.gt()`, `.gte()`, `.lt()`, `.lte()`. Useful when you need to pass the method as a callback.
+
 ## Compose with & and |
 
 ```python
@@ -27,7 +33,7 @@ City.country.not_in(["China"])
 (City.state == "CA") | (City.state == "NY")
 ```
 
-Or explicitly:
+Or use `And` / `Or` explicitly:
 
 ```python
 from cendry import And, Or
@@ -38,7 +44,13 @@ Or(
 )
 ```
 
+!!! warning "Use parentheses"
+
+    `&` and `|` have higher precedence than `==` in Python. Always wrap comparisons in parentheses.
+
 ## Chain filters on Query
+
+Build up filters incrementally — each call returns a new immutable `Query`:
 
 ```python
 query = (
@@ -59,7 +71,7 @@ query = ctx.select(City).filter([
 
 ## Use FieldFilter directly
 
-For raw Firestore filters:
+For raw Firestore filters when you need them:
 
 ```python
 from cendry import FieldFilter
@@ -71,12 +83,12 @@ ctx.select(City, FieldFilter("state", "==", "CA"))
 
 | Operator | Python | Method |
 |----------|--------|--------|
-| `==` | `City.state == "CA"` | `City.state.eq("CA")` |
-| `!=` | `City.state != "CA"` | `City.state.ne("CA")` |
-| `>` | `City.pop > 100` | `City.pop.gt(100)` |
-| `>=` | `City.pop >= 100` | `City.pop.gte(100)` |
-| `<` | `City.pop < 100` | `City.pop.lt(100)` |
-| `<=` | `City.pop <= 100` | `City.pop.lte(100)` |
+| `==` | `City.state == "CA"` | `.eq("CA")` |
+| `!=` | `City.state != "CA"` | `.ne("CA")` |
+| `>` | `City.pop > 100` | `.gt(100)` |
+| `>=` | `City.pop >= 100` | `.gte(100)` |
+| `<` | `City.pop < 100` | `.lt(100)` |
+| `<=` | `City.pop <= 100` | `.lte(100)` |
 | `array-contains` | — | `.array_contains(v)` |
 | `array-contains-any` | — | `.array_contains_any([...])` |
 | `in` | — | `.is_in([...])` |

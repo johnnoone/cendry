@@ -1,6 +1,6 @@
 # First Steps
 
-This tutorial walks you through installing Cendry, defining your first model, and reading data from Firestore.
+In this tutorial you'll install Cendry, define your first model, and read data from Firestore. By the end, you'll be querying documents with full type safety.
 
 ## Prerequisites
 
@@ -10,13 +10,21 @@ This tutorial walks you through installing Cendry, defining your first model, an
 
 ## Install Cendry
 
-```bash
-pip install cendry
-```
+=== "pip"
+
+    ```bash
+    pip install cendry
+    ```
+
+=== "uv"
+
+    ```bash
+    uv add cendry
+    ```
 
 ## Define a Model
 
-A **Model** maps to a Firestore collection. Each field is annotated with `Field[T]`.
+A **Model** maps to a Firestore collection. Each field uses `Field[T]` for type-safe annotations.
 
 ```python
 from cendry import Model, Map, Field, field
@@ -38,14 +46,18 @@ class City(Model, collection="cities"):
 
 !!! info "Key concepts"
 
-    - `Model` — a top-level Firestore document, bound to a collection.
-    - `Map` — embedded data (a Firestore map within a document). No collection, no `id`.
-    - `Field[T]` — a typed field. On instances it returns the value; on the class it provides filter methods.
-    - All fields are **keyword-only**.
+    - **`Model`** — a top-level Firestore document, bound to a collection.
+    - **`Map`** — embedded data (a Firestore map within a document). No collection, no `id`.
+    - **`Field[T]`** — a typed field. On instances it returns the value; on the class it provides filter methods.
+    - All fields are **keyword-only** — you write `City(name="SF", state="CA")`.
+
+!!! tip "Invalid types are caught early"
+
+    If you use a type Firestore doesn't support, like `Field[complex]`, you'll get a `TypeError` at class definition — not at query time.
 
 ## Connect and Query
 
-Use `Cendry` as a context manager:
+Use `Cendry` as a context manager. It closes the Firestore client automatically.
 
 ```python
 from cendry import Cendry
@@ -60,7 +72,18 @@ with Cendry() as ctx:
     print(maybe)  # None
 ```
 
+!!! tip "Custom client"
+
+    By default, Cendry uses Application Default Credentials. Pass a custom client for specific projects:
+
+    ```python
+    from google.cloud.firestore import Client
+    ctx = Cendry(client=Client(project="my-project"))
+    ```
+
 ## Iterate Over Results
+
+`select()` returns a `Query` — it streams results lazily from Firestore.
 
 ```python
 with Cendry() as ctx:
@@ -68,9 +91,11 @@ with Cendry() as ctx:
         print(f"{city.name}: {city.population}")
 ```
 
-`select()` returns a `Query` object — it streams results lazily from Firestore.
+Notice `City.state == "CA"` — that's a real Python expression that creates a Firestore filter. No strings needed.
 
 ## Batch Fetch
+
+Fetch multiple documents in a single round trip:
 
 ```python
 with Cendry() as ctx:
@@ -79,7 +104,13 @@ with Cendry() as ctx:
         print(city.name)
 ```
 
+!!! warning
+
+    `get_many` raises `DocumentNotFoundError` if any ID is missing. The error includes all missing IDs.
+
 ## What's Next?
 
-- Learn about [querying, filtering, and pagination](querying.md)
-- See the [how-to guides](../how-to/index.md) for specific tasks
+You've covered the basics. Next steps:
+
+- **[Querying Data](querying.md)** — filters, ordering, pagination, the Query object
+- **[How-To Guides](../how-to/index.md)** — recipes for specific tasks

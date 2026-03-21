@@ -2,6 +2,8 @@
 
 ## Basic model
 
+Every model needs a `collection=` — Cendry never guesses collection names.
+
 ```python
 from cendry import Model, Field
 
@@ -11,9 +13,9 @@ class City(Model, collection="cities"):
     population: Field[int]
 ```
 
-The `collection=` parameter is required — Cendry never guesses collection names.
-
 ## Optional fields with defaults
+
+Use `field()` for defaults. Fields without defaults are required.
 
 ```python
 from cendry import field
@@ -26,7 +28,7 @@ class City(Model, collection="cities"):
 
 ## Embedded maps
 
-Use `Map` for nested data (Firestore maps):
+Use `Map` for nested data — Firestore maps within a document.
 
 ```python
 from cendry import Map
@@ -40,11 +42,19 @@ class User(Model, collection="users"):
     address: Field[Address]
 ```
 
-Maps can nest other Maps. Maps have no `collection` and no `id`.
+Maps can nest other Maps. They have no `collection` and no `id`.
+
+!!! info
+
+    When Firestore returns `{"address": {"street": "123 Main", "city": "SF"}}`, the `address` field is automatically deserialized into an `Address` instance.
 
 ## Inheritance and mixins
 
+Share fields across models using `Map` as a mixin:
+
 ```python
+from datetime import datetime
+
 class TimestampMixin(Map):
     created_at: Field[datetime]
     updated_at: Field[datetime]
@@ -66,6 +76,8 @@ print(city.id)  # "SF"
 
 ## Enum fields
 
+Enums are supported and auto-converted:
+
 ```python
 import enum
 
@@ -74,11 +86,29 @@ class Status(enum.Enum):
     INACTIVE = "inactive"
 
 class User(Model, collection="users"):
-    status: Field[Status]
-    role: Field[Role] = field(enum_by="name")  # store by name
+    status: Field[Status]                          # stores by value: "active"
+    role: Field[Role] = field(enum_by="name")      # stores by name: "ADMIN"
 ```
+
+!!! tip
+
+    `IntEnum` and `StrEnum` also work. The `enum_by` setting controls whether the value or the name is stored in Firestore.
+
+## Field aliases
+
+When the Firestore field name differs from the Python name:
+
+```python
+class City(Model, collection="cities"):
+    name: Field[str] = field(alias="displayName")
+```
+
+See [How to Use Aliases](aliases.md) for details.
 
 ## Restrictions
 
-- `Model` cannot be nested inside another `Model` — use `Map`.
-- Only [Firestore-compatible types](type-validation.md) are accepted in `Field[T]`.
+!!! warning "What you can't do"
+
+    - **Model inside Model** — `Field[OtherModel]` raises `TypeError`. Use `Map` for embedded data.
+    - **Unsupported types** — `Field[complex]` and other non-Firestore types raise `TypeError` at class definition.
+    - **Dict keys must be `str`** — `Field[dict[int, str]]` is rejected.

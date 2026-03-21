@@ -2,6 +2,8 @@
 
 ## Create models from dicts
 
+`from_dict` constructs model instances from raw dictionaries — useful for testing and data import.
+
 ```python
 from cendry import from_dict
 
@@ -36,7 +38,7 @@ assert isinstance(city.mayor, Mayor)
 
 ### Missing fields
 
-Raises `TypeError` with a clear message:
+Raises `TypeError` with a clear message listing all missing fields:
 
 ```python
 from_dict(City, {"name": "SF"})
@@ -50,13 +52,21 @@ from cendry import to_dict
 
 data = to_dict(city)
 # {"name": "San Francisco", "state": "CA", ...}
+```
 
-# Include document ID
+### Options
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `by_alias` | `False` | Use Firestore alias keys instead of Python names |
+| `include_id` | `False` | Include the document ID in the output |
+
+```python
 to_dict(city, include_id=True)
 # {"name": "San Francisco", ..., "id": "SF"}
 
-# Use Firestore alias keys
 to_dict(city, by_alias=True)
+# {"displayName": "San Francisco", ...}
 ```
 
 ## Testing without Firestore
@@ -75,3 +85,7 @@ def test_city_population():
     })
     assert city.population == 870_000
 ```
+
+!!! tip "Custom types in tests"
+
+    If your model uses a registered custom type (like `Money`), `from_dict` runs the handler's `deserialize` automatically — your tests get the same conversion as production.
