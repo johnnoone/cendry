@@ -16,6 +16,7 @@ from cendry import (
     Model,
     Or,
 )
+from cendry.serialize import to_dict
 from tests.conftest import City, Mayor, Neighborhood, make_mock_document
 
 SF_DATA = {
@@ -594,3 +595,63 @@ def test_validate_required_fields_ignores_optional(mock_firestore_client: MagicM
     )
     ctx = Cendry(client=mock_firestore_client)
     ctx._validate_required_fields(city)  # should not raise
+
+
+# --- save ---
+
+
+def test_save_with_explicit_id(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    ctx = Cendry(client=mock_firestore_client)
+
+    result = ctx.save(city)
+
+    doc_ref = mock_firestore_client.collection.return_value.document
+    doc_ref.assert_called_with("SF")
+    doc_ref.return_value.set.assert_called_once_with(to_dict(city, by_alias=True))
+    assert result == doc_ref.return_value.id
+
+
+def test_save_with_auto_id(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA)  # id=None
+    doc_ref_mock = MagicMock()
+    doc_ref_mock.id = "auto-123"
+    mock_firestore_client.collection.return_value.document.return_value = doc_ref_mock
+
+    ctx = Cendry(client=mock_firestore_client)
+    result = ctx.save(city)
+
+    mock_firestore_client.collection.return_value.document.assert_called_with()
+    doc_ref_mock.set.assert_called_once()
+    assert city.id == "auto-123"
+    assert result == "auto-123"
+
+
+def test_save_with_parent(mock_firestore_client: MagicMock):
+    parent = City(**SF_DATA, id="SF")
+    neighborhood = Neighborhood(name="Mission", population=60_000)
+    doc_ref_mock = MagicMock()
+    doc_ref_mock.id = "nb-123"
+    parent_doc = mock_firestore_client.collection.return_value.document.return_value
+    parent_doc.collection.return_value.document.return_value = doc_ref_mock
+
+    ctx = Cendry(client=mock_firestore_client)
+    result = ctx.save(neighborhood, parent=parent)
+
+    parent_doc.collection.assert_called_with("neighborhoods")
+    assert neighborhood.id == "nb-123"
+    assert result == "nb-123"
+
+
+def test_save_validates_required_fields(mock_firestore_client: MagicMock):
+    city = City(
+        name=None,  # type: ignore[arg-type]
+        state="CA",
+        country="USA",
+        capital=False,
+        population=870_000,
+        regions=[],
+    )
+    ctx = Cendry(client=mock_firestore_client)
+    with pytest.raises(CendryError, match="Required fields are None"):
+        ctx.save(city)

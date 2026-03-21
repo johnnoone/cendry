@@ -10,7 +10,7 @@ from .exceptions import CendryError, DocumentNotFoundError
 from .filters import And, Or
 from .model import FieldFilterResult, Model
 from .query import AsyncQuery, Query
-from .serialize import deserialize
+from .serialize import deserialize, to_dict
 from .types import TypeRegistry, default_registry
 
 T = TypeVar("T", bound=Model)
@@ -268,6 +268,27 @@ class Cendry(_BaseCendry):
             collection_group=True,
         )
         return Query(q, model_class, self._apply_filter)
+
+    def save(self, instance: T, *, parent: Model | None = None) -> str:
+        """Save (upsert) a document. Returns the document ID.
+
+        Args:
+            instance: Model instance to save.
+            parent: Parent document for subcollection writes.
+
+        Returns:
+            The document ID (auto-generated if instance.id was None).
+        """
+        self._validate_required_fields(instance)
+        col_ref = self._get_collection_ref(type(instance), parent)
+        if instance.id is None:
+            doc_ref = col_ref.document()
+        else:
+            doc_ref = col_ref.document(instance.id)
+        doc_ref.set(to_dict(instance, by_alias=True))
+        if instance.id is None:
+            instance.id = doc_ref.id
+        return doc_ref.id
 
 
 class AsyncCendry(_BaseCendry):
