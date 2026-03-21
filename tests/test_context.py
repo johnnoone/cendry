@@ -1299,3 +1299,104 @@ def test_refresh_with_parent(mock_firestore_client: MagicMock):
 
     assert neighborhood.name == "Mission District"
     assert neighborhood.population == 65_000
+
+
+# --- async update ---
+
+
+@pytest.mark.anyio
+async def test_async_update_by_instance(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    mock_firestore_client.collection.return_value.document.return_value.update = AsyncMock()
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    await ctx.update(city, {"name": "New Name"})
+
+    mock_firestore_client.collection.return_value.document.return_value.update.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_async_update_by_class_and_id(mock_firestore_client: MagicMock):
+    mock_firestore_client.collection.return_value.document.return_value.update = AsyncMock()
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    await ctx.update(City, "SF", {"name": "New Name"})
+
+    mock_firestore_client.collection.return_value.document.return_value.update.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_async_update_instance_no_id_raises(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA)  # id=None
+    ctx = AsyncCendry(client=mock_firestore_client)
+
+    with pytest.raises(CendryError, match="Cannot update a model instance with id=None"):
+        await ctx.update(city, {"name": "New"})
+
+
+@pytest.mark.anyio
+async def test_async_update_missing_doc_raises(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    mock_firestore_client.collection.return_value.document.return_value.update = AsyncMock(
+        side_effect=NotFound("not found")
+    )
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    with pytest.raises(DocumentNotFoundError) as exc_info:
+        await ctx.update(city, {"name": "New"})
+
+    assert isinstance(exc_info.value.__cause__, NotFound)
+
+
+@pytest.mark.anyio
+async def test_async_update_with_parent(mock_firestore_client: MagicMock):
+    parent = City(**SF_DATA, id="SF")
+    parent_doc = mock_firestore_client.collection.return_value.document.return_value
+    sub_doc_ref = parent_doc.collection.return_value.document.return_value
+    sub_doc_ref.update = AsyncMock()
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    await ctx.update(Neighborhood, "MISSION", {"population": 65_000}, parent=parent)
+
+    sub_doc_ref.update.assert_called_once()
+
+
+# --- async refresh ---
+
+
+@pytest.mark.anyio
+async def test_async_refresh_mutates_instance(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    updated_data = {**SF_DATA, "name": "San Fran", "population": 900_000}
+    doc = make_mock_document("SF", updated_data)
+    mock_firestore_client.collection.return_value.document.return_value.get = AsyncMock(
+        return_value=doc,
+    )
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    await ctx.refresh(city)
+
+    assert city.name == "San Fran"
+    assert city.population == 900_000
+
+
+@pytest.mark.anyio
+async def test_async_refresh_no_id_raises(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA)
+    ctx = AsyncCendry(client=mock_firestore_client)
+
+    with pytest.raises(CendryError, match="Cannot refresh a model instance with id=None"):
+        await ctx.refresh(city)
+
+
+@pytest.mark.anyio
+async def test_async_refresh_missing_doc_raises(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    doc = make_mock_document("SF", {}, exists=False)
+    mock_firestore_client.collection.return_value.document.return_value.get = AsyncMock(
+        return_value=doc,
+    )
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    with pytest.raises(DocumentNotFoundError):
+        await ctx.refresh(city)

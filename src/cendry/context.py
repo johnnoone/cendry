@@ -635,3 +635,62 @@ class AsyncCendry(_BaseCendry):
                 if not doc.exists:
                     raise DocumentNotFoundError(instance_or_class.__collection__, doc_id)
             await col_ref.document(doc_id).delete()
+
+    @overload
+    async def update(
+        self, instance: Model, field_updates: dict[str, Any], *, parent: Model | None = None
+    ) -> None: ...
+    @overload
+    async def update(
+        self,
+        model_class: type[T],
+        doc_id: str,
+        field_updates: dict[str, Any],
+        *,
+        parent: Model | None = None,
+    ) -> None: ...
+
+    async def update(  # type: ignore[misc]
+        self,
+        instance_or_class: Model | type[T],
+        field_updates_or_doc_id: dict[str, Any] | str,
+        field_updates_or_none: dict[str, Any] | None = None,
+        *,
+        parent: Model | None = None,
+    ) -> None:
+        """Partially update a document's fields."""
+        if isinstance(instance_or_class, Model):
+            if instance_or_class.id is None:
+                raise CendryError("Cannot update a model instance with id=None")
+            model_class = type(instance_or_class)
+            doc_id = instance_or_class.id
+            field_updates = field_updates_or_doc_id
+        else:
+            model_class = instance_or_class
+            doc_id = field_updates_or_doc_id
+            field_updates = field_updates_or_none
+            assert field_updates is not None
+
+        resolved = {
+            resolve_field_path(model_class, k): serialize_update_value(
+                v, registry=self.type_registry
+            )
+            for k, v in field_updates.items()
+        }
+        col_ref = self._get_collection_ref(model_class, parent)
+        try:
+            await col_ref.document(doc_id).update(resolved)
+        except NotFound as e:
+            raise DocumentNotFoundError(model_class.__collection__, doc_id) from e
+
+    async def refresh(self, instance: T, *, parent: Model | None = None) -> None:
+        """Re-fetch a document from Firestore and update the instance in-place."""
+        if instance.id is None:
+            raise CendryError("Cannot refresh a model instance with id=None")
+        col_ref = self._get_collection_ref(type(instance), parent)
+        doc = await col_ref.document(instance.id).get()
+        if not doc.exists:
+            raise DocumentNotFoundError(type(instance).__collection__, instance.id)
+        fresh = deserialize(type(instance), doc.id, doc.to_dict(), registry=self.type_registry)
+        for f in dataclasses.fields(instance):
+            setattr(instance, f.name, getattr(fresh, f.name))
