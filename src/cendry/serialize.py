@@ -1,7 +1,7 @@
 import dataclasses
 import functools
 import types
-from typing import Any, get_args, get_type_hints
+from typing import Any, get_args, get_origin, get_type_hints
 
 from .model import METADATA_ALIAS, Map, Model
 
@@ -40,17 +40,42 @@ def resolve_map_type(hint: Any) -> type | None:
 
 
 def _deserialize_value(value: Any, hint: Any) -> Any:
-    """Deserialize a single value, checking handlers then Map nesting."""
+    """Deserialize a single value, checking handlers then Map nesting.
+
+    Handles containers: list[Money] deserializes each element via MoneyHandler.
+    """
     from .types import default_registry
 
     if value is None:
         return None
+
+    # Direct type match (non-container)
     inner_type = _resolve_inner_type(hint)
     if inner_type is not None:
         handler = default_registry.get_handler(inner_type)
         if handler is not None:
             return handler.deserialize(value)
-    if value is not None and isinstance(value, dict):
+
+    # Container types: recurse into elements
+    origin = get_origin(hint)
+    if origin in (list, set, tuple) and isinstance(value, (list, set, tuple)):
+        args = get_args(hint)
+        if args:
+            if origin is tuple:
+                return tuple(
+                    _deserialize_value(v, a) for v, a in zip(value, args, strict=False)
+                )
+            elem_hint = args[0]
+            converted = [_deserialize_value(v, elem_hint) for v in value]
+            return set(converted) if origin is set else converted
+    if origin is dict and isinstance(value, dict):
+        args = get_args(hint)
+        if args and len(args) > 1:
+            val_hint = args[1]
+            return {k: _deserialize_value(v, val_hint) for k, v in value.items()}
+
+    # Map nesting
+    if isinstance(value, dict):
         inner = resolve_map_type(hint)
         if inner is not None:
             return deserialize_map(inner, value)
@@ -127,16 +152,43 @@ def from_dict[T: Model](
 
 
 def _serialize_value(value: Any, hint: Any, *, by_alias: bool) -> Any:
-    """Serialize a single value, checking handlers then Map nesting."""
+    """Serialize a single value, checking handlers then Map nesting.
+
+    Handles containers: list[Money] serializes each element via MoneyHandler.
+    """
     if value is None:
         return None
     from .types import default_registry
 
+    # Direct type match
     inner_type = _resolve_inner_type(hint)
     if inner_type is not None:
         handler = default_registry.get_handler(inner_type)
         if handler is not None:
             return handler.serialize(value)
+
+    # Container types: recurse into elements
+    origin = get_origin(hint)
+    if origin in (list, set, tuple) and isinstance(value, (list, set, tuple)):
+        args = get_args(hint)
+        if args:
+            if origin is tuple:
+                return tuple(
+                    _serialize_value(v, a, by_alias=by_alias)
+                    for v, a in zip(value, args, strict=False)
+                )
+            elem_hint = args[0]
+            converted = [_serialize_value(v, elem_hint, by_alias=by_alias) for v in value]
+            return set(converted) if origin is set else converted
+    if origin is dict and isinstance(value, dict):
+        args = get_args(hint)
+        if args and len(args) > 1:
+            val_hint = args[1]
+            return {
+                k: _serialize_value(v, val_hint, by_alias=by_alias) for k, v in value.items()
+            }
+
+    # Map nesting
     if isinstance(value, Map):
         return _map_to_dict(value, by_alias=by_alias)
     return value

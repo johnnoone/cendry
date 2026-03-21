@@ -97,3 +97,63 @@ def test_handler_with_optional_field():
     )
     assert isinstance(result2.total, Money)
     assert result2.total.amount == 50
+
+
+# --- Container type handlers ---
+
+
+class Cart(Model, collection="carts"):
+    title: Field[str]
+    items: Field[list[Money]]
+
+
+def test_deserialize_list_of_handler_type():
+    result = deserialize(Cart, "c1", {
+        "title": "Cart",
+        "items": [
+            {"amount": 10, "currency": "USD"},
+            {"amount": 20, "currency": "EUR"},
+        ],
+    })
+    assert len(result.items) == 2
+    assert all(isinstance(m, Money) for m in result.items)
+    assert result.items[0].amount == 10
+    assert result.items[1].currency == "EUR"
+
+
+def test_to_dict_list_of_handler_type():
+    cart = Cart(title="Cart", items=[Money(10, "USD"), Money(20, "EUR")])
+    result = to_dict(cart)
+    assert result["items"] == [
+        {"amount": 10, "currency": "USD"},
+        {"amount": 20, "currency": "EUR"},
+    ]
+
+
+class Ledger(Model, collection="ledgers"):
+    title: Field[str]
+    accounts: Field[dict[str, Money]]
+
+
+def test_deserialize_dict_of_handler_type():
+    result = deserialize(Ledger, "l1", {
+        "title": "Ledger",
+        "accounts": {
+            "checking": {"amount": 100, "currency": "USD"},
+            "savings": {"amount": 200, "currency": "EUR"},
+        },
+    })
+    assert isinstance(result.accounts["checking"], Money)
+    assert result.accounts["savings"].amount == 200
+
+
+def test_to_dict_dict_of_handler_type():
+    ledger = Ledger(
+        title="Ledger",
+        accounts={
+            "checking": Money(100, "USD"),
+            "savings": Money(200, "EUR"),
+        },
+    )
+    result = to_dict(ledger)
+    assert result["accounts"]["checking"] == {"amount": 100, "currency": "USD"}
