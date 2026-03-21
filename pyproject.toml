@@ -1,13 +1,35 @@
 [project]
 name = "cendry"
 version = "0.1.0"
-description = "A Firestore ODM for Python"
+description = "A typed Firestore ODM for Python — define models, query with Python operators, get full IDE support."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.13"
+authors = [
+    { name = "Xavier Barbosa", email = "clint.northwood@gmail.com" },
+]
+keywords = ["firestore", "odm", "google-cloud", "dataclass", "async", "typed"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+    "Framework :: AnyIO",
+    "Topic :: Database",
+]
 dependencies = [
     "google-cloud-firestore>=2.19",
     "anyio>=4",
 ]
+
+[project.urls]
+Documentation = "https://johnnoone.github.io/cendry/"
+Repository = "https://github.com/johnnoone/cendry"
+Issues = "https://github.com/johnnoone/cendry/issues"
+Changelog = "https://github.com/johnnoone/cendry/releases"
 
 [dependency-groups]
 dev = [
