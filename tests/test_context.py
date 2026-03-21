@@ -796,3 +796,217 @@ def test_delete_with_parent(mock_firestore_client: MagicMock):
     ctx.delete(Neighborhood, "MISSION", parent=parent)
 
     sub_doc_ref.delete.assert_called_once()
+
+
+# --- async save ---
+
+
+@pytest.mark.anyio
+async def test_async_save_with_explicit_id(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    mock_firestore_client.collection.return_value.document.return_value.set = AsyncMock()
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    result = await ctx.save(city)
+
+    mock_firestore_client.collection.return_value.document.assert_called_with("SF")
+    assert result == mock_firestore_client.collection.return_value.document.return_value.id
+
+
+@pytest.mark.anyio
+async def test_async_save_with_auto_id(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA)  # id=None
+    doc_ref_mock = MagicMock()
+    doc_ref_mock.id = "auto-async-123"
+    doc_ref_mock.set = AsyncMock()
+    mock_firestore_client.collection.return_value.document.return_value = doc_ref_mock
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    result = await ctx.save(city)
+
+    assert city.id == "auto-async-123"
+    assert result == "auto-async-123"
+
+
+@pytest.mark.anyio
+async def test_async_save_with_parent(mock_firestore_client: MagicMock):
+    parent = City(**SF_DATA, id="SF")
+    neighborhood = Neighborhood(name="Mission", population=60_000)
+    doc_ref_mock = MagicMock()
+    doc_ref_mock.id = "nb-async-123"
+    doc_ref_mock.set = AsyncMock()
+    parent_doc = mock_firestore_client.collection.return_value.document.return_value
+    parent_doc.collection.return_value.document.return_value = doc_ref_mock
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    result = await ctx.save(neighborhood, parent=parent)
+
+    parent_doc.collection.assert_called_with("neighborhoods")
+    assert neighborhood.id == "nb-async-123"
+    assert result == "nb-async-123"
+
+
+@pytest.mark.anyio
+async def test_async_save_validates_required_fields(mock_firestore_client: MagicMock):
+    city = City(
+        name=None,  # type: ignore[arg-type]
+        state="CA",
+        country="USA",
+        capital=False,
+        population=870_000,
+        regions=[],
+    )
+    ctx = AsyncCendry(client=mock_firestore_client)
+    with pytest.raises(CendryError, match="Required fields are None"):
+        await ctx.save(city)
+
+
+# --- async create ---
+
+
+@pytest.mark.anyio
+async def test_async_create_with_explicit_id(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    mock_firestore_client.collection.return_value.document.return_value.create = AsyncMock()
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    result = await ctx.create(city)
+
+    mock_firestore_client.collection.return_value.document.return_value.create.assert_called_once()
+    assert result == mock_firestore_client.collection.return_value.document.return_value.id
+
+
+@pytest.mark.anyio
+async def test_async_create_with_auto_id(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA)  # id=None
+    doc_ref_mock = MagicMock()
+    doc_ref_mock.id = "auto-async-456"
+    doc_ref_mock.create = AsyncMock()
+    mock_firestore_client.collection.return_value.document.return_value = doc_ref_mock
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    result = await ctx.create(city)
+
+    mock_firestore_client.collection.return_value.document.assert_called_with()
+    assert city.id == "auto-async-456"
+    assert result == "auto-async-456"
+
+
+@pytest.mark.anyio
+async def test_async_create_with_parent(mock_firestore_client: MagicMock):
+    parent = City(**SF_DATA, id="SF")
+    neighborhood = Neighborhood(name="Mission", population=60_000, id="MISSION")
+    parent_doc = mock_firestore_client.collection.return_value.document.return_value
+    sub_doc_ref = parent_doc.collection.return_value.document.return_value
+    sub_doc_ref.create = AsyncMock()
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    result = await ctx.create(neighborhood, parent=parent)
+
+    sub_doc_ref.create.assert_called_once()
+    assert result == sub_doc_ref.id
+
+
+@pytest.mark.anyio
+async def test_async_create_raises_on_conflict(mock_firestore_client: MagicMock):
+    from google.cloud.exceptions import Conflict
+
+    city = City(**SF_DATA, id="SF")
+    doc_ref = mock_firestore_client.collection.return_value.document.return_value
+    doc_ref.id = "SF"
+    doc_ref.create = AsyncMock(side_effect=Conflict("already exists"))
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    with pytest.raises(DocumentAlreadyExistsError) as exc_info:
+        await ctx.create(city)
+
+    assert isinstance(exc_info.value.__cause__, Conflict)
+
+
+@pytest.mark.anyio
+async def test_async_create_validates_required_fields(mock_firestore_client: MagicMock):
+    city = City(
+        name=None,  # type: ignore[arg-type]
+        state="CA",
+        country="USA",
+        capital=False,
+        population=870_000,
+        regions=[],
+    )
+    ctx = AsyncCendry(client=mock_firestore_client)
+    with pytest.raises(CendryError, match="Required fields are None"):
+        await ctx.create(city)
+
+
+# --- async delete ---
+
+
+@pytest.mark.anyio
+async def test_async_delete_by_instance(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    mock_firestore_client.collection.return_value.document.return_value.delete = AsyncMock()
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    await ctx.delete(city)
+
+    mock_firestore_client.collection.return_value.document.return_value.delete.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_async_delete_by_instance_no_id_raises(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA)  # id=None
+    ctx = AsyncCendry(client=mock_firestore_client)
+
+    with pytest.raises(CendryError, match="Cannot delete a model instance with id=None"):
+        await ctx.delete(city)
+
+
+@pytest.mark.anyio
+async def test_async_delete_by_class_and_id(mock_firestore_client: MagicMock):
+    mock_firestore_client.collection.return_value.document.return_value.delete = AsyncMock()
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    await ctx.delete(City, "SF")
+
+    mock_firestore_client.collection.return_value.document.assert_called_with("SF")
+    mock_firestore_client.collection.return_value.document.return_value.delete.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_async_delete_by_class_must_exist_raises(mock_firestore_client: MagicMock):
+    doc = make_mock_document("NOPE", {}, exists=False)
+    mock_firestore_client.collection.return_value.document.return_value.get = AsyncMock(
+        return_value=doc,
+    )
+    mock_firestore_client.collection.return_value.document.return_value.delete = AsyncMock()
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    with pytest.raises(DocumentNotFoundError):
+        await ctx.delete(City, "NOPE", must_exist=True)
+
+
+@pytest.mark.anyio
+async def test_async_delete_by_class_must_exist_passes(mock_firestore_client: MagicMock):
+    doc = make_mock_document("SF", SF_DATA)
+    mock_firestore_client.collection.return_value.document.return_value.get = AsyncMock(
+        return_value=doc,
+    )
+    mock_firestore_client.collection.return_value.document.return_value.delete = AsyncMock()
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    await ctx.delete(City, "SF", must_exist=True)
+
+    mock_firestore_client.collection.return_value.document.return_value.delete.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_async_delete_with_parent(mock_firestore_client: MagicMock):
+    parent = City(**SF_DATA, id="SF")
+    parent_doc = mock_firestore_client.collection.return_value.document.return_value
+    sub_doc_ref = parent_doc.collection.return_value.document.return_value
+    sub_doc_ref.delete = AsyncMock()
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    await ctx.delete(Neighborhood, "MISSION", parent=parent)
+
+    sub_doc_ref.delete.assert_called_once()

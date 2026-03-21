@@ -499,3 +499,68 @@ class AsyncCendry(_BaseCendry):
             collection_group=True,
         )
         return AsyncQuery(q, model_class, self._apply_filter)
+
+    async def save(self, instance: T, *, parent: Model | None = None) -> str:
+        """Save (upsert) a document. Returns the document ID."""
+        self._validate_required_fields(instance)
+        col_ref = self._get_collection_ref(type(instance), parent)
+        if instance.id is None:
+            doc_ref = col_ref.document()
+        else:
+            doc_ref = col_ref.document(instance.id)
+        await doc_ref.set(to_dict(instance, by_alias=True))
+        if instance.id is None:
+            instance.id = doc_ref.id
+        return doc_ref.id
+
+    async def create(self, instance: T, *, parent: Model | None = None) -> str:
+        """Create a document. Raises if it already exists. Returns the document ID."""
+        self._validate_required_fields(instance)
+        col_ref = self._get_collection_ref(type(instance), parent)
+        if instance.id is None:
+            doc_ref = col_ref.document()
+        else:
+            doc_ref = col_ref.document(instance.id)
+        try:
+            await doc_ref.create(to_dict(instance, by_alias=True))
+        except Conflict as e:
+            raise DocumentAlreadyExistsError(
+                type(instance).__collection__, doc_ref.id
+            ) from e
+        if instance.id is None:
+            instance.id = doc_ref.id
+        return doc_ref.id
+
+    @overload
+    async def delete(self, instance: Model, *, parent: Model | None = None) -> None: ...
+    @overload
+    async def delete(
+        self,
+        model_class: type[T],
+        doc_id: str,
+        *,
+        parent: Model | None = None,
+        must_exist: bool = False,
+    ) -> None: ...
+
+    async def delete(
+        self,
+        instance_or_class: Model | type[T],
+        doc_id: str | None = None,
+        *,
+        parent: Model | None = None,
+        must_exist: bool = False,
+    ) -> None:
+        """Delete a document by instance or by class + ID."""
+        if isinstance(instance_or_class, Model):
+            if instance_or_class.id is None:
+                raise CendryError("Cannot delete a model instance with id=None")
+            col_ref = self._get_collection_ref(type(instance_or_class), parent)
+            await col_ref.document(instance_or_class.id).delete()
+        else:
+            col_ref = self._get_collection_ref(instance_or_class, parent)
+            if must_exist:
+                doc = await col_ref.document(doc_id).get()
+                if not doc.exists:
+                    raise DocumentNotFoundError(instance_or_class.__collection__, doc_id)
+            await col_ref.document(doc_id).delete()
