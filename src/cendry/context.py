@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Iterator, TypeVar
+from collections.abc import AsyncIterator, Iterator
+from typing import Any, TypeVar
 
 from google.cloud.firestore import Client
 from google.cloud.firestore_v1.base_query import And as FsAnd
@@ -175,4 +176,73 @@ class Cendry(_BaseCendry):
             collection_group=True,
         )
         for doc in query.stream():
+            yield self._deserialize(model_class, doc.id, doc.to_dict())
+
+
+class AsyncCendry(_BaseCendry):
+    """Asynchronous Firestore ODM context. Works with anyio (asyncio + trio)."""
+
+    def __init__(self, *, client: Any = None) -> None:
+        if client is None:
+            from google.cloud.firestore import AsyncClient
+
+            client = AsyncClient()
+        self._client = client
+
+    async def get(self, model_class: type[T], document_id: str, *, parent: Model | None = None) -> T:
+        """Get a document by ID. Raises DocumentNotFound if it doesn't exist."""
+        col_ref = self._get_collection_ref(model_class, parent)
+        doc = await col_ref.document(document_id).get()
+        if not doc.exists:
+            raise DocumentNotFound(model_class.__collection__, document_id)
+        return self._deserialize(model_class, doc.id, doc.to_dict())
+
+    async def find(self, model_class: type[T], document_id: str, *, parent: Model | None = None) -> T | None:
+        """Get a document by ID. Returns None if it doesn't exist."""
+        col_ref = self._get_collection_ref(model_class, parent)
+        doc = await col_ref.document(document_id).get()
+        if not doc.exists:
+            return None
+        return self._deserialize(model_class, doc.id, doc.to_dict())
+
+    async def select(
+        self,
+        model_class: type[T],
+        *filters: Any,
+        order_by: list[Any] | None = None,
+        limit: int | None = None,
+        start_at: dict[str, Any] | Model | None = None,
+        start_after: dict[str, Any] | Model | None = None,
+        end_at: dict[str, Any] | Model | None = None,
+        end_before: dict[str, Any] | Model | None = None,
+        parent: Model | None = None,
+    ) -> AsyncIterator[T]:
+        """Query documents. Returns an async iterator."""
+        query = self._build_query(
+            model_class, filters, order_by=order_by, limit=limit,
+            start_at=start_at, start_after=start_after,
+            end_at=end_at, end_before=end_before, parent=parent,
+        )
+        async for doc in query.stream():
+            yield self._deserialize(model_class, doc.id, doc.to_dict())
+
+    async def select_group(
+        self,
+        model_class: type[T],
+        *filters: Any,
+        order_by: list[Any] | None = None,
+        limit: int | None = None,
+        start_at: dict[str, Any] | Model | None = None,
+        start_after: dict[str, Any] | Model | None = None,
+        end_at: dict[str, Any] | Model | None = None,
+        end_before: dict[str, Any] | Model | None = None,
+    ) -> AsyncIterator[T]:
+        """Query across all subcollections with the given collection name."""
+        query = self._build_query(
+            model_class, filters, order_by=order_by, limit=limit,
+            start_at=start_at, start_after=start_after,
+            end_at=end_at, end_before=end_before,
+            collection_group=True,
+        )
+        async for doc in query.stream():
             yield self._deserialize(model_class, doc.id, doc.to_dict())

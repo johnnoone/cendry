@@ -4,7 +4,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cendry import Cendry, DocumentNotFound, FieldFilter
+from unittest.mock import AsyncMock
+
+from cendry import AsyncCendry, Cendry, DocumentNotFound, FieldFilter
 from tests.conftest import City, Neighborhood, make_mock_document
 
 
@@ -183,3 +185,102 @@ def test_parent_requires_id(mock_firestore_client: MagicMock):
     ctx = Cendry(client=mock_firestore_client)
     with pytest.raises(CendryError, match="non-None id"):
         list(ctx.select(Neighborhood, parent=city))
+
+
+# --- AsyncCendry tests ---
+
+
+@pytest.mark.anyio
+async def test_async_get_existing(mock_firestore_client: MagicMock):
+    doc = make_mock_document("SF", {
+        "name": "San Francisco", "state": "CA", "country": "USA",
+        "capital": False, "population": 870000, "regions": ["west_coast"],
+    })
+    mock_firestore_client.collection.return_value.document.return_value.get = AsyncMock(return_value=doc)
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    city = await ctx.get(City, "SF")
+
+    assert city.id == "SF"
+    assert city.name == "San Francisco"
+
+
+@pytest.mark.anyio
+async def test_async_get_not_found(mock_firestore_client: MagicMock):
+    doc = make_mock_document("NOPE", {}, exists=False)
+    mock_firestore_client.collection.return_value.document.return_value.get = AsyncMock(return_value=doc)
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    with pytest.raises(DocumentNotFound):
+        await ctx.get(City, "NOPE")
+
+
+@pytest.mark.anyio
+async def test_async_find_existing(mock_firestore_client: MagicMock):
+    doc = make_mock_document("SF", {
+        "name": "San Francisco", "state": "CA", "country": "USA",
+        "capital": False, "population": 870000, "regions": ["west_coast"],
+    })
+    mock_firestore_client.collection.return_value.document.return_value.get = AsyncMock(return_value=doc)
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    city = await ctx.find(City, "SF")
+    assert city is not None
+    assert city.name == "San Francisco"
+
+
+@pytest.mark.anyio
+async def test_async_find_not_found(mock_firestore_client: MagicMock):
+    doc = make_mock_document("NOPE", {}, exists=False)
+    mock_firestore_client.collection.return_value.document.return_value.get = AsyncMock(return_value=doc)
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    result = await ctx.find(City, "NOPE")
+    assert result is None
+
+
+@pytest.mark.anyio
+async def test_async_select(mock_firestore_client: MagicMock):
+    docs = [
+        make_mock_document("SF", {
+            "name": "San Francisco", "state": "CA", "country": "USA",
+            "capital": False, "population": 870000, "regions": ["west_coast"],
+        }),
+    ]
+
+    async def mock_stream():
+        for d in docs:
+            yield d
+
+    mock_firestore_client.collection.return_value.stream = mock_stream
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    cities = []
+    async for city in ctx.select(City):
+        cities.append(city)
+
+    assert len(cities) == 1
+    assert cities[0].name == "San Francisco"
+
+
+@pytest.mark.anyio
+async def test_async_select_group(mock_firestore_client: MagicMock):
+    docs = [
+        make_mock_document("MISSION", {"name": "Mission", "population": 60000}),
+    ]
+
+    async def mock_stream():
+        for d in docs:
+            yield d
+
+    query_mock = MagicMock()
+    query_mock.stream = mock_stream
+    mock_firestore_client.collection_group.return_value = query_mock
+
+    ctx = AsyncCendry(client=mock_firestore_client)
+    neighborhoods = []
+    async for n in ctx.select_group(Neighborhood):
+        neighborhoods.append(n)
+
+    assert len(neighborhoods) == 1
+    assert neighborhoods[0].name == "Mission"
