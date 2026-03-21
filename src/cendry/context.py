@@ -1,5 +1,4 @@
 import dataclasses
-from collections.abc import AsyncIterator, Iterator
 from typing import Any, Self, TypeVar
 
 from google.cloud.firestore import Client
@@ -10,6 +9,7 @@ from google.cloud.firestore_v1.base_query import Or as FsOr
 from .exceptions import CendryError, DocumentNotFoundError
 from .filters import And, Or
 from .model import FieldFilterResult, Model
+from .query import AsyncQuery, Query
 from .serialize import deserialize
 from .types import TypeRegistry, default_registry
 
@@ -158,9 +158,9 @@ class Cendry(_BaseCendry):
         end_at: dict[str, Any] | Model | None = None,
         end_before: dict[str, Any] | Model | None = None,
         parent: Model | None = None,
-    ) -> Iterator[T]:
-        """Query documents. Returns a lazy iterator."""
-        query = self._build_query(
+    ) -> Query[T]:
+        """Query documents. Returns a Query with convenience methods."""
+        q = self._build_query(
             model_class,
             filters,
             order_by=order_by,
@@ -171,8 +171,7 @@ class Cendry(_BaseCendry):
             end_before=end_before,
             parent=parent,
         )
-        for doc in query.stream():
-            yield self._deserialize(model_class, doc.id, doc.to_dict())
+        return Query(q, model_class, self._apply_filter)
 
     def select_group(
         self,
@@ -184,9 +183,9 @@ class Cendry(_BaseCendry):
         start_after: dict[str, Any] | Model | None = None,
         end_at: dict[str, Any] | Model | None = None,
         end_before: dict[str, Any] | Model | None = None,
-    ) -> Iterator[T]:
+    ) -> Query[T]:
         """Query across all subcollections with the given collection name."""
-        query = self._build_query(
+        q = self._build_query(
             model_class,
             filters,
             order_by=order_by,
@@ -197,8 +196,7 @@ class Cendry(_BaseCendry):
             end_before=end_before,
             collection_group=True,
         )
-        for doc in query.stream():
-            yield self._deserialize(model_class, doc.id, doc.to_dict())
+        return Query(q, model_class, self._apply_filter)
 
 
 class AsyncCendry(_BaseCendry):
@@ -243,7 +241,7 @@ class AsyncCendry(_BaseCendry):
             return None
         return self._deserialize(model_class, doc.id, doc.to_dict())
 
-    async def select(
+    def select(
         self,
         model_class: type[T],
         *filters: Any,
@@ -254,9 +252,9 @@ class AsyncCendry(_BaseCendry):
         end_at: dict[str, Any] | Model | None = None,
         end_before: dict[str, Any] | Model | None = None,
         parent: Model | None = None,
-    ) -> AsyncIterator[T]:
-        """Query documents. Returns an async iterator."""
-        query = self._build_query(
+    ) -> AsyncQuery[T]:
+        """Query documents. Returns an AsyncQuery with convenience methods."""
+        q = self._build_query(
             model_class,
             filters,
             order_by=order_by,
@@ -267,10 +265,9 @@ class AsyncCendry(_BaseCendry):
             end_before=end_before,
             parent=parent,
         )
-        async for doc in query.stream():
-            yield self._deserialize(model_class, doc.id, doc.to_dict())
+        return AsyncQuery(q, model_class, self._apply_filter)
 
-    async def select_group(
+    def select_group(
         self,
         model_class: type[T],
         *filters: Any,
@@ -280,9 +277,9 @@ class AsyncCendry(_BaseCendry):
         start_after: dict[str, Any] | Model | None = None,
         end_at: dict[str, Any] | Model | None = None,
         end_before: dict[str, Any] | Model | None = None,
-    ) -> AsyncIterator[T]:
+    ) -> AsyncQuery[T]:
         """Query across all subcollections with the given collection name."""
-        query = self._build_query(
+        q = self._build_query(
             model_class,
             filters,
             order_by=order_by,
@@ -293,5 +290,4 @@ class AsyncCendry(_BaseCendry):
             end_before=end_before,
             collection_group=True,
         )
-        async for doc in query.stream():
-            yield self._deserialize(model_class, doc.id, doc.to_dict())
+        return AsyncQuery(q, model_class, self._apply_filter)
