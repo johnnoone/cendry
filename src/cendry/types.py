@@ -1,5 +1,6 @@
 import dataclasses
 import datetime
+import enum
 import types
 from collections.abc import Callable
 from decimal import Decimal
@@ -79,6 +80,10 @@ class TypeRegistry:
                 container_name = origin.__name__
                 for arg in args:
                     self._validate_hint(arg, field_name, class_name, f"{container_name}[...]")
+            return
+
+        # Enum types
+        if isinstance(hint, type) and issubclass(hint, enum.Enum):
             return
 
         # Structured types

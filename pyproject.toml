@@ -52,6 +52,7 @@ include = ["tests/**"]
 unknown-argument = "ignore"
 unresolved-attribute = "ignore"
 invalid-argument-type = "ignore"
+missing-argument = "ignore"
 
 [tool.coverage.run]
 source = ["cendry"]

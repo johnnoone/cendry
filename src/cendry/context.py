@@ -147,6 +147,25 @@ class Cendry(_BaseCendry):
             return None
         return self._deserialize(model_class, doc.id, doc.to_dict())
 
+    def get_many(
+        self,
+        model_class: type[T],
+        document_ids: list[str],
+        *,
+        parent: Model | None = None,
+    ) -> list[T]:
+        """Batch fetch multiple documents by ID.
+
+        Raises DocumentNotFoundError if any are missing.
+        """
+        col_ref = self._get_collection_ref(model_class, parent)
+        doc_refs = [col_ref.document(doc_id) for doc_id in document_ids]
+        docs = list(self._client.get_all(doc_refs))
+        missing = [doc.id for doc in docs if not doc.exists]
+        if missing:
+            raise DocumentNotFoundError(model_class.__collection__, ", ".join(missing))
+        return [self._deserialize(model_class, doc.id, doc.to_dict()) for doc in docs]
+
     def select(
         self,
         model_class: type[T],
@@ -240,6 +259,25 @@ class AsyncCendry(_BaseCendry):
         if not doc.exists:
             return None
         return self._deserialize(model_class, doc.id, doc.to_dict())
+
+    async def get_many(
+        self,
+        model_class: type[T],
+        document_ids: list[str],
+        *,
+        parent: Model | None = None,
+    ) -> list[T]:
+        """Batch fetch multiple documents by ID.
+
+        Raises DocumentNotFoundError if any are missing.
+        """
+        col_ref = self._get_collection_ref(model_class, parent)
+        doc_refs = [col_ref.document(doc_id) for doc_id in document_ids]
+        docs = [doc async for doc in self._client.get_all(doc_refs)]
+        missing = [doc.id for doc in docs if not doc.exists]
+        if missing:
+            raise DocumentNotFoundError(model_class.__collection__, ", ".join(missing))
+        return [self._deserialize(model_class, doc.id, doc.to_dict()) for doc in docs]
 
     def select(
         self,

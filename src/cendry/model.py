@@ -1,19 +1,55 @@
 import dataclasses
-from typing import Any, ClassVar, dataclass_transform, get_args, get_origin, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    dataclass_transform,
+    get_args,
+    get_origin,
+    overload,
+)
 
 from .filters import Filter
+
+if TYPE_CHECKING:
+    from .query import Asc, Desc
+
+# Maps operator strings to dunder symbols for repr
+_DUNDER_OPS: dict[str, str] = {"==": "==", "!=": "!=", ">": ">", ">=": ">=", "<": "<", "<=": "<="}
+_METHOD_OPS: dict[str, str] = {
+    "array-contains": "array_contains",
+    "array-contains-any": "array_contains_any",
+    "in": "is_in",
+    "not-in": "not_in",
+}
 
 
 class FieldFilterResult(Filter):
     """A filter produced by a field descriptor method."""
 
-    def __init__(self, field_name: str, op: str, value: Any) -> None:
-        self.field_name = field_name
+    def __init__(
+        self,
+        field_name: str,
+        op: str,
+        value: Any,
+        *,
+        owner: type | None = None,
+        python_name: str | None = None,
+    ) -> None:
+        self.field_name = field_name  # alias (for Firestore)
         self.op = op
         self.value = value
+        self._owner = owner
+        self._python_name = python_name or field_name
 
     def __repr__(self) -> str:
-        return f'FieldFilter("{self.field_name}", "{self.op}", {self.value!r})'
+        owner = f"{self._owner.__name__}." if self._owner else ""
+        field = self._python_name
+        if self.op in _DUNDER_OPS:
+            return f"{owner}{field} {_DUNDER_OPS[self.op]} {self.value!r}"
+        if self.op in _METHOD_OPS:
+            return f"{owner}{field}.{_METHOD_OPS[self.op]}({self.value!r})"
+        return f'FieldFilter("{self.field_name}", "{self.op}", {self.value!r})'  # pragma: no cover
 
 
 class FieldDescriptor:
@@ -23,8 +59,20 @@ class FieldDescriptor:
     On instance access: returns the stored value.
     """
 
-    def __init__(self, field_name: str) -> None:
+    def __init__(
+        self,
+        field_name: str,
+        *,
+        alias: str | None = None,
+        owner: type | None = None,
+    ) -> None:
         self.field_name = field_name
+        self.alias = alias or field_name
+        self.owner = owner
+
+    def __repr__(self) -> str:
+        owner_name = self.owner.__name__ if self.owner else "?"
+        return f"{owner_name}.{self.field_name}"
 
     def __get__(self, obj: Any, objtype: type | None = None) -> Any:
         if obj is None:
@@ -35,7 +83,9 @@ class FieldDescriptor:
         obj.__dict__[self.field_name] = value
 
     def _make_filter(self, op: str, value: Any) -> FieldFilterResult:
-        return FieldFilterResult(self.field_name, op, value)
+        return FieldFilterResult(
+            self.alias, op, value, owner=self.owner, python_name=self.field_name
+        )
 
     def eq(self, value: Any) -> FieldFilterResult:
         return self._make_filter("==", value)
@@ -88,6 +138,17 @@ class FieldDescriptor:
     def __le__(self, other: Any) -> FieldFilterResult:
         return self._make_filter("<=", other)
 
+    # Ordering
+    def asc(self) -> "Asc":
+        from .query import Asc
+
+        return Asc(self)
+
+    def desc(self) -> "Desc":
+        from .query import Desc
+
+        return Desc(self)
+
 
 class Field[T]:
     """Typed field descriptor for Model and Map classes.
@@ -114,13 +175,22 @@ def field(
     *,
     default: Any = dataclasses.MISSING,
     default_factory: Any = dataclasses.MISSING,
+    alias: str | None = None,
+    enum_by: str = "value",
 ) -> Any:
-    """Configure a model field with defaults."""
+    """Configure a model field with defaults and metadata."""
+    metadata: dict[str, Any] = {}
+    if alias is not None:
+        metadata["cendry_alias"] = alias
+    if enum_by != "value":
+        metadata["cendry_enum_by"] = enum_by
     kwargs: dict[str, Any] = {}
     if default is not dataclasses.MISSING:
         kwargs["default"] = default
     if default_factory is not dataclasses.MISSING:
         kwargs["default_factory"] = default_factory
+    if metadata:
+        kwargs["metadata"] = metadata
     return dataclasses.field(**kwargs)
 
 
@@ -174,7 +244,8 @@ class _MapMeta(type):
 
         for f in dataclasses.fields(cls):  # type: ignore[arg-type]  # mypy: metaclass type mismatch
             if f.name != "id":
-                setattr(cls, f.name, FieldDescriptor(f.name))
+                alias = f.metadata.get("cendry_alias") if f.metadata else None
+                setattr(cls, f.name, FieldDescriptor(f.name, alias=alias, owner=cls))
 
         return cls
 

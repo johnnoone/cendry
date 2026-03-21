@@ -21,6 +21,7 @@ def test_public_api_exports():
         "field",
         "from_dict",
         "register_type",
+        "to_dict",
     ]
     for name in expected:
         assert hasattr(cendry, name), f"Missing export: {name}"

@@ -51,35 +51,54 @@ def test_or_requires_at_least_two():
 # --- repr ---
 
 
-def test_field_filter_result_repr():
+def test_field_filter_result_repr_dunder():
+    """Dunder operators use copy-pasteable dunder form."""
+    from cendry import Field, Model
+
+    class City(Model, collection="cities_repr_test"):
+        state: Field[str]
+
+    result = City.state == "CA"
+    assert repr(result) == "City.state == 'CA'"
+
+
+def test_field_filter_result_repr_method():
+    """Non-dunder operators use method form."""
+    from cendry import Field, Model
+
+    class City(Model, collection="cities_repr_test2"):
+        regions: Field[list[str]]
+
+    result = City.regions.array_contains("west")
+    assert repr(result) == "City.regions.array_contains('west')"
+
+
+def test_field_filter_result_repr_no_owner():
+    """Without owner, falls back to raw form."""
     from cendry.model import FieldFilterResult
 
     f = FieldFilterResult("state", "==", "CA")
-    assert repr(f) == 'FieldFilter("state", "==", \'CA\')'
-
-
-def test_field_filter_result_repr_int():
-    from cendry.model import FieldFilterResult
-
-    f = FieldFilterResult("population", ">", 1_000_000)
-    assert repr(f) == 'FieldFilter("population", ">", 1000000)'
+    assert "== 'CA'" in repr(f)
 
 
 def test_and_repr():
-    from cendry.model import FieldFilterResult
+    from cendry import Field, Model
 
-    f1 = FieldFilterResult("state", "==", "CA")
-    f2 = FieldFilterResult("pop", ">", 100)
-    result = And(f1, f2)
+    class City(Model, collection="cities_and_repr"):
+        state: Field[str]
+        pop: Field[int]
+
+    result = (City.state == "CA") & (City.pop > 100)
     assert "And(" in repr(result)
-    assert "FieldFilter(" in repr(result)
+    assert "City.state == 'CA'" in repr(result)
 
 
 def test_or_repr():
-    from cendry.model import FieldFilterResult
+    from cendry import Field, Model
 
-    f1 = FieldFilterResult("state", "==", "CA")
-    f2 = FieldFilterResult("state", "==", "NY")
-    result = Or(f1, f2)
+    class City(Model, collection="cities_or_repr"):
+        state: Field[str]
+
+    result = (City.state == "CA") | (City.state == "NY")
     assert "Or(" in repr(result)
-    assert "FieldFilter(" in repr(result)
+    assert "City.state == 'CA'" in repr(result)

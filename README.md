@@ -153,12 +153,25 @@ query = ctx.select(City).filter(City.state == "CA").filter(City.population > 500
 # Also accepts a list
 query = ctx.select(City).filter([City.state == "CA", City.population > 500_000])
 
+# Chainable ordering and limiting
+query = (
+    ctx.select(City)
+    .filter(City.state == "CA")
+    .order_by(City.population)           # ascending by default
+    .order_by(City.name.desc())          # descending
+    .limit(10)
+)
+
 # Convenience methods
 cities = query.to_list()      # list[City]
 city = query.first()          # City | None
 city = query.one()            # City (raises if not exactly 1)
 exists = query.exists()       # bool
 n = query.count()             # int (Firestore aggregation)
+
+# Pagination
+for page in query.paginate(page_size=10):
+    print(f"Got {len(page)} cities")
 ```
 
 Async:
@@ -167,16 +180,25 @@ Async:
 cities = await query.to_list()
 city = await query.first()
 n = await query.count()
+
+async for page in query.paginate(page_size=10):
+    process(page)
 ```
+
+## Batch Fetch
+
+```python
+cities = ctx.get_many(City, ["SF", "LA", "NYC"])
+```
+
+Raises `DocumentNotFoundError` if any IDs are missing.
 
 ## Ordering and Pagination
 
 ```python
-from cendry import Asc, Desc
-
 ctx.select(City,
     City.state == "CA",
-    order_by=[Asc(City.population), Desc(City.name)],
+    order_by=[City.population.asc(), City.name.desc()],
     limit=10,
     start_after={"population": 1_000_000},
 )
@@ -221,6 +243,43 @@ city = from_dict(City, {...}, doc_id="123")
 
 Nested `Map` dicts are automatically converted. Raises `TypeError` if required fields are missing.
 
+## to_dict
+
+Convert models to dicts:
+
+```python
+from cendry import to_dict
+
+data = to_dict(city)                    # Python field names
+data = to_dict(city, by_alias=True)     # Firestore field names
+data = to_dict(city, include_id=True)   # Include document ID
+```
+
+## Field Aliases
+
+When the Firestore field name differs from Python:
+
+```python
+class City(Model, collection="cities"):
+    name: Field[str] = field(alias="displayName")
+```
+
+Filters, ordering, and Firestore reads/writes use the alias automatically.
+
+## Enum Support
+
+```python
+import enum
+
+class Status(enum.Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+class User(Model, collection="users"):
+    status: Field[Status]
+    role: Field[Role] = field(enum_by="name")  # store by name instead of value
+```
+
 ## Type Validation
 
 `Field[T]` annotations are validated at class definition time. Only Firestore-compatible types are accepted:
@@ -233,7 +292,7 @@ register_type(MyCustomClass)
 register_type(lambda cls: hasattr(cls, "__my_protocol__"))
 ```
 
-Supported: `str`, `int`, `float`, `bool`, `bytes`, `Decimal`, `datetime`, `GeoPoint`, `DocumentReference`, `list`, `tuple`, `set`, `dict`, `Map`, dataclasses, `TypedDict`, pydantic/attrs/msgspec (if installed).
+Supported: `str`, `int`, `float`, `bool`, `bytes`, `Decimal`, `datetime`, `GeoPoint`, `DocumentReference`, `list`, `tuple`, `set`, `dict`, `Map`, dataclasses, `TypedDict`, `enum.Enum`, pydantic/attrs/msgspec (if installed).
 
 ## Exceptions
 

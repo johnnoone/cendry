@@ -5,7 +5,7 @@ from .exceptions import CendryError, DocumentNotFoundError
 from .filters import And, FieldFilter, Or
 from .model import Field, FieldDescriptor, Map, Model, field
 from .query import Asc, AsyncQuery, Desc, Query
-from .serialize import from_dict
+from .serialize import from_dict, to_dict
 from .types import TypeRegistry, register_type
 
 __all__ = [
@@ -28,4 +28,5 @@ __all__ = [
     "field",
     "from_dict",
     "register_type",
+    "to_dict",
 ]
