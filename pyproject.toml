@@ -28,7 +28,6 @@ packages = ["src/cendry"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-asyncio_mode = "auto"
 
 [tool.mypy]
 strict = true
