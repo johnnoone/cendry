@@ -113,3 +113,34 @@ class TypeRegistry:
             f"{f' in {context}' if context else ''}. "
             f"Firestore does not support this type."
         )
+
+
+# Global default registry
+default_registry = TypeRegistry()
+
+# Third-party structured type detection
+try:
+    from pydantic import BaseModel as PydanticBaseModel
+
+    default_registry.register(lambda cls: issubclass(cls, PydanticBaseModel))
+except ImportError:
+    pass
+
+try:
+    import attrs
+
+    default_registry.register(lambda cls: attrs.has(cls))
+except ImportError:
+    pass
+
+try:
+    from msgspec import Struct as MsgspecStruct
+
+    default_registry.register(lambda cls: issubclass(cls, MsgspecStruct))
+except ImportError:
+    pass
+
+
+def register_type(type_or_predicate: type | Callable[[type], bool]) -> None:
+    """Register a type or predicate as Firestore-compatible in the global registry."""
+    default_registry.register(type_or_predicate)

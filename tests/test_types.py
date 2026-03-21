@@ -172,3 +172,50 @@ def test_unknown_class_is_invalid(registry: TypeRegistry):
 
     with pytest.raises(TypeError):
         registry.validate("val", RandomClass, "TestModel")
+
+
+# --- Custom registration ---
+
+
+def test_register_custom_type(registry: TypeRegistry):
+    class MyType:
+        pass
+
+    registry.register(MyType)
+    registry.validate("val", MyType, "TestModel")
+
+
+def test_register_predicate(registry: TypeRegistry):
+    class CustomClass:
+        __custom__ = True
+
+    registry.register(lambda cls: hasattr(cls, "__custom__"))
+    registry.validate("val", CustomClass, "TestModel")
+
+
+def test_predicate_not_matching(registry: TypeRegistry):
+    class PlainClass:
+        pass
+
+    registry.register(lambda cls: hasattr(cls, "__custom__"))
+    with pytest.raises(TypeError):
+        registry.validate("val", PlainClass, "TestModel")
+
+
+# --- default_registry and register_type ---
+
+
+def test_default_registry_accepts_str():
+    from cendry.types import default_registry
+
+    default_registry.validate("name", str, "Test")
+
+
+def test_register_type_function():
+    from cendry.types import default_registry, register_type
+
+    class AnotherType:
+        pass
+
+    register_type(AnotherType)
+    default_registry.validate("val", AnotherType, "Test")
