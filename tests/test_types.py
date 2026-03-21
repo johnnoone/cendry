@@ -193,6 +193,18 @@ def test_register_predicate(registry: TypeRegistry):
     registry.validate("val", CustomClass, "TestModel")
 
 
+def test_predicate_raising_typeerror_is_skipped(registry: TypeRegistry):
+    """A checker that raises TypeError is silently skipped."""
+
+    def bad_checker(cls: type) -> bool:
+        raise TypeError("issubclass() arg 1 must be a class")
+
+    registry.register(bad_checker)
+    # Should still reject — the bad checker is skipped, no good checker matches
+    with pytest.raises(TypeError, match="unsupported type"):
+        registry.validate("val", type("X", (), {}), "TestModel")
+
+
 def test_predicate_not_matching(registry: TypeRegistry):
     class PlainClass:
         pass

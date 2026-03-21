@@ -3,12 +3,12 @@ import datetime
 from decimal import Decimal
 from typing import Any, TypedDict
 
+from google.cloud.firestore_v1._helpers import GeoPoint
+from google.cloud.firestore_v1.document import DocumentReference
 from pytest_bdd import given, parsers, scenario, then, when
 
 from cendry import Field, Map, Model
 from cendry.types import default_registry
-from google.cloud.firestore_v1._helpers import GeoPoint
-from google.cloud.firestore_v1.document import DocumentReference
 
 FEATURES = "features"
 
@@ -16,7 +16,7 @@ _counter = 0
 
 
 def _unique_name() -> str:
-    global _counter  # noqa: PLW0603
+    global _counter
     _counter += 1
     return f"bdd_types_{_counter}"
 
@@ -247,7 +247,7 @@ def type_error_raised(model_result):
 @then(parsers.parse('a TypeError is raised with message containing "{text}"'))
 def type_error_with_message(model_result, text):
     status, error = model_result
-    assert status == "error", f"Expected error, got success"
+    assert status == "error", "Expected error, got success"
     assert text in str(error), f"Expected '{text}' in '{error}'"
 
 

@@ -8,17 +8,19 @@ from typing import Any, get_args, get_origin, is_typeddict
 from google.cloud.firestore_v1._helpers import GeoPoint
 from google.cloud.firestore_v1.document import DocumentReference
 
-_SCALAR_TYPES: frozenset[type] = frozenset({
-    str,
-    int,
-    float,
-    bool,
-    bytes,
-    Decimal,
-    datetime.datetime,
-    GeoPoint,
-    DocumentReference,
-})
+_SCALAR_TYPES: frozenset[type] = frozenset(
+    {
+        str,
+        int,
+        float,
+        bool,
+        bytes,
+        Decimal,
+        datetime.datetime,
+        GeoPoint,
+        DocumentReference,
+    }
+)
 
 _CONTAINER_TYPES: frozenset[type] = frozenset({list, tuple, set, dict})
 
@@ -41,9 +43,7 @@ class TypeRegistry:
         """Validate a type hint is Firestore-compatible. Raises TypeError if not."""
         self._validate_hint(hint, field_name, class_name, context="")
 
-    def _validate_hint(
-        self, hint: Any, field_name: str, class_name: str, context: str
-    ) -> None:
+    def _validate_hint(self, hint: Any, field_name: str, class_name: str, context: str) -> None:
         # Scalar types
         if isinstance(hint, type) and hint in self._scalar_types:
             return
@@ -122,21 +122,21 @@ default_registry = TypeRegistry()
 try:
     from pydantic import BaseModel as PydanticBaseModel  # type: ignore[import-not-found]
 
-    default_registry.register(lambda cls: issubclass(cls, PydanticBaseModel))
+    default_registry.register(lambda cls: issubclass(cls, PydanticBaseModel))  # pragma: no cover
 except ImportError:
     pass
 
 try:
     import attrs  # type: ignore[import-not-found]
 
-    default_registry.register(lambda cls: attrs.has(cls))
+    default_registry.register(lambda cls: attrs.has(cls))  # pragma: no cover
 except ImportError:
     pass
 
 try:
     from msgspec import Struct as MsgspecStruct  # type: ignore[import-not-found]
 
-    default_registry.register(lambda cls: issubclass(cls, MsgspecStruct))
+    default_registry.register(lambda cls: issubclass(cls, MsgspecStruct))  # pragma: no cover
 except ImportError:
     pass
 
