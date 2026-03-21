@@ -507,3 +507,30 @@ def test_resolve_map_type_non_map():
     assert base._resolve_map_type(str) is None
     assert base._resolve_map_type("some_string") is None
     assert base._resolve_map_type(None) is None
+
+
+# --- type_registry ---
+
+
+def test_cendry_accepts_type_registry(mock_firestore_client: MagicMock):
+    from cendry.types import TypeRegistry
+
+    registry = TypeRegistry()
+    ctx = Cendry(client=mock_firestore_client, type_registry=registry)
+    assert ctx.type_registry is registry
+
+
+def test_cendry_default_registry(mock_firestore_client: MagicMock):
+    from cendry.types import default_registry
+
+    ctx = Cendry(client=mock_firestore_client)
+    assert ctx.type_registry is default_registry
+
+
+@pytest.mark.anyio
+async def test_async_cendry_accepts_type_registry(mock_firestore_client: MagicMock):
+    from cendry.types import TypeRegistry
+
+    registry = TypeRegistry()
+    ctx = AsyncCendry(client=mock_firestore_client, type_registry=registry)
+    assert ctx.type_registry is registry

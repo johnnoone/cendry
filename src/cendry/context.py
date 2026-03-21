@@ -11,6 +11,7 @@ from google.cloud.firestore_v1.base_query import Or as FsOr
 from .exceptions import CendryError, DocumentNotFoundError
 from .filters import And, Or
 from .model import FieldFilterResult, Map, Model
+from .types import TypeRegistry, default_registry
 
 T = TypeVar("T", bound=Model)
 
@@ -19,6 +20,7 @@ class _BaseCendry:
     """Shared logic for sync and async contexts."""
 
     _client: Any
+    type_registry: TypeRegistry
 
     def _deserialize(self, model_class: type[T], doc_id: str, data: dict[str, Any]) -> T:
         """Convert a Firestore document dict to a model instance."""
@@ -150,8 +152,14 @@ class _BaseCendry:
 class Cendry(_BaseCendry):
     """Synchronous Firestore ODM context."""
 
-    def __init__(self, *, client: Client | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        client: Client | None = None,
+        type_registry: TypeRegistry | None = None,
+    ) -> None:
         self._client = client or Client()
+        self.type_registry = type_registry or default_registry
 
     def get(self, model_class: type[T], document_id: str, *, parent: Model | None = None) -> T:
         """Get a document by ID. Raises DocumentNotFoundError if it doesn't exist."""
@@ -228,12 +236,18 @@ class Cendry(_BaseCendry):
 class AsyncCendry(_BaseCendry):
     """Asynchronous Firestore ODM context. Works with anyio (asyncio + trio)."""
 
-    def __init__(self, *, client: Any = None) -> None:
+    def __init__(
+        self,
+        *,
+        client: Any = None,
+        type_registry: TypeRegistry | None = None,
+    ) -> None:
         if client is None:
             from google.cloud.firestore import AsyncClient
 
             client = AsyncClient()
         self._client = client
+        self.type_registry = type_registry or default_registry
 
     async def get(
         self, model_class: type[T], document_id: str, *, parent: Model | None = None
