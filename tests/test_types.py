@@ -63,3 +63,61 @@ def test_geopoint_is_valid(registry: TypeRegistry):
 
 def test_document_reference_is_valid(registry: TypeRegistry):
     registry.validate("ref", DocumentReference, "TestModel")
+
+
+# --- Optional ---
+
+
+def test_optional_str_is_valid(registry: TypeRegistry):
+    registry.validate("name", str | None, "TestModel")
+
+
+def test_optional_complex_is_invalid(registry: TypeRegistry):
+    with pytest.raises(TypeError, match="complex"):
+        registry.validate("val", complex | None, "TestModel")
+
+
+# --- Containers ---
+
+
+def test_list_str_is_valid(registry: TypeRegistry):
+    registry.validate("tags", list[str], "TestModel")
+
+
+def test_list_complex_is_invalid(registry: TypeRegistry):
+    with pytest.raises(TypeError, match="complex"):
+        registry.validate("tags", list[complex], "TestModel")
+
+
+def test_set_int_is_valid(registry: TypeRegistry):
+    registry.validate("ids", set[int], "TestModel")
+
+
+def test_tuple_str_int_is_valid(registry: TypeRegistry):
+    registry.validate("pair", tuple[str, int], "TestModel")
+
+
+def test_dict_str_int_is_valid(registry: TypeRegistry):
+    registry.validate("data", dict[str, int], "TestModel")
+
+
+def test_dict_int_key_is_invalid(registry: TypeRegistry):
+    with pytest.raises(TypeError, match="dict keys must be str"):
+        registry.validate("data", dict[int, str], "TestModel")
+
+
+def test_nested_list_dict_is_valid(registry: TypeRegistry):
+    registry.validate("items", list[dict[str, int]], "TestModel")
+
+
+def test_nested_invalid_inner_type(registry: TypeRegistry):
+    with pytest.raises(TypeError, match="complex"):
+        registry.validate("items", list[dict[str, complex]], "TestModel")
+
+
+def test_bare_list_is_valid(registry: TypeRegistry):
+    registry.validate("items", list, "TestModel")
+
+
+def test_bare_dict_is_valid(registry: TypeRegistry):
+    registry.validate("data", dict, "TestModel")

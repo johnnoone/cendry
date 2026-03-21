@@ -1,7 +1,8 @@
 import datetime
+import types
 from collections.abc import Callable
 from decimal import Decimal
-from typing import Any
+from typing import Any, get_args, get_origin
 
 from google.cloud.firestore_v1._helpers import GeoPoint
 from google.cloud.firestore_v1.document import DocumentReference
@@ -45,6 +46,42 @@ class TypeRegistry:
         # Scalar types
         if isinstance(hint, type) and hint in self._scalar_types:
             return
+
+        # Bare container types (list, dict, etc. without parameters)
+        if isinstance(hint, type) and hint in _CONTAINER_TYPES:
+            return
+
+        origin = get_origin(hint)
+        args = get_args(hint)
+
+        # Optional: T | None
+        if isinstance(hint, types.UnionType):
+            non_none = [a for a in args if a is not type(None)]
+            for arg in non_none:
+                self._validate_hint(arg, field_name, class_name, context)
+            return
+
+        # Containers: list[T], set[T], tuple[T1, T2], dict[K, V]
+        if origin in _CONTAINER_TYPES:
+            if origin is dict and args:
+                key_type = args[0]
+                if key_type is not str:
+                    key_name = key_type.__name__ if isinstance(key_type, type) else str(key_type)
+                    raise TypeError(
+                        f"Field '{field_name}' on '{class_name}': "
+                        f"dict keys must be str, got {key_name}"
+                        f"{f' in {context}' if context else ''}."
+                    )
+                if len(args) > 1:
+                    self._validate_hint(args[1], field_name, class_name, "dict[str, ...]")
+            elif args:
+                container_name = origin.__name__
+                for arg in args:
+                    self._validate_hint(arg, field_name, class_name, f"{container_name}[...]")
+            return
+
+        # Structured types — added in Task 3
+        # Custom checkers — added in Task 4
 
         type_name = hint.__name__ if isinstance(hint, type) else str(hint)
         raise TypeError(
