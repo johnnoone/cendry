@@ -18,16 +18,7 @@ from cendry import (
     Or,
 )
 from cendry.serialize import to_dict
-from tests.conftest import City, Mayor, Neighborhood, make_mock_document
-
-SF_DATA = {
-    "name": "San Francisco",
-    "state": "CA",
-    "country": "USA",
-    "capital": False,
-    "population": 870000,
-    "regions": ["west_coast"],
-}
+from tests.conftest import SF_DATA, City, Mayor, Neighborhood, make_mock_document
 
 
 # --- get / find ---

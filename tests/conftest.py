@@ -8,6 +8,16 @@ import pytest
 from cendry import Field, Map, Model, field
 
 
+SF_DATA = {
+    "name": "San Francisco",
+    "state": "CA",
+    "country": "USA",
+    "capital": False,
+    "population": 870000,
+    "regions": ["west_coast"],
+}
+
+
 class Mayor(Map):
     name: Field[str]
     since: Field[int]
