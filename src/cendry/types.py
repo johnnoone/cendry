@@ -120,21 +120,21 @@ default_registry = TypeRegistry()
 
 # Third-party structured type detection
 try:
-    from pydantic import BaseModel as PydanticBaseModel
+    from pydantic import BaseModel as PydanticBaseModel  # type: ignore[import-not-found]
 
     default_registry.register(lambda cls: issubclass(cls, PydanticBaseModel))
 except ImportError:
     pass
 
 try:
-    import attrs
+    import attrs  # type: ignore[import-not-found]
 
     default_registry.register(lambda cls: attrs.has(cls))
 except ImportError:
     pass
 
 try:
-    from msgspec import Struct as MsgspecStruct
+    from msgspec import Struct as MsgspecStruct  # type: ignore[import-not-found]
 
     default_registry.register(lambda cls: issubclass(cls, MsgspecStruct))
 except ImportError:

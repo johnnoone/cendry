@@ -1,5 +1,4 @@
 import dataclasses
-import types
 from typing import Any, get_args, get_origin, overload
 
 from .filters import Filter
@@ -110,30 +109,6 @@ def _unwrap_field_type(hint: Any) -> Any:
     return hint  # pragma: no cover
 
 
-def _get_inner_type(hint: Any) -> type | None:
-    """Get the concrete inner type, unwrapping Field[T] and T | None."""
-    inner = _unwrap_field_type(hint)
-    origin = get_origin(inner)
-    if origin is types.UnionType:
-        non_none = [a for a in get_args(inner) if a is not type(None)]
-        if len(non_none) == 1:
-            inner = non_none[0]
-    if isinstance(inner, type):
-        return inner
-    return None
-
-
-def _validate_no_nested_models(cls: type, annotations: dict[str, Any]) -> None:
-    """Raise TypeError if any field references a Model subclass."""
-    for name, hint in annotations.items():
-        inner = _get_inner_type(hint)
-        if inner is not None and isinstance(inner, type) and issubclass(inner, Model):
-            raise TypeError(
-                f"Field '{name}' on '{cls.__name__}' cannot nest Model "
-                f"'{inner.__name__}'. Use Map for embedded data."
-            )
-
-
 class _MapMeta(type):
     """Metaclass for Map that applies dataclass and sets up field descriptors."""
 
@@ -164,7 +139,11 @@ class _MapMeta(type):
 
         cls.__annotations__ = rewritten
 
-        _validate_no_nested_models(cls, raw_annotations)
+        from .types import default_registry
+
+        for attr_name, hint in raw_annotations.items():
+            inner = _unwrap_field_type(hint)
+            default_registry.validate(attr_name, inner, name)
 
         cls = dataclasses.dataclass(cls)  # type: ignore[arg-type,assignment]  # mypy: metaclass type mismatch
 

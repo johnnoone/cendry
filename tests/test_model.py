@@ -111,6 +111,37 @@ def test_map_cannot_nest_model():
             city: Field[City]
 
 
+# --- Type validation at definition ---
+
+
+def test_model_rejects_invalid_field_type():
+    with pytest.raises(TypeError, match="complex"):
+
+        class Bad(Model, collection="bad"):
+            val: Field[complex]
+
+
+def test_map_rejects_invalid_field_type():
+    with pytest.raises(TypeError, match="complex"):
+
+        class Bad(Map):
+            val: Field[complex]
+
+
+def test_model_accepts_list_str():
+    class Good(Model, collection="good_list"):
+        tags: Field[list[str]]
+
+    assert Good.__collection__ == "good_list"
+
+
+def test_model_accepts_dict_str_int():
+    class Good(Model, collection="good_dict"):
+        data: Field[dict[str, int]]
+
+    assert Good.__collection__ == "good_dict"
+
+
 # --- Field descriptor filters ---
 
 
