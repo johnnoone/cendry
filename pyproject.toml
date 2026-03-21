@@ -32,8 +32,15 @@ testpaths = ["tests"]
 
 [tool.mypy]
 strict = true
-packages = ["cendry"]
+packages = ["cendry", "tests"]
 mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_untyped_decorators = false
+disallow_incomplete_defs = false
+disable_error_code = ["arg-type", "call-arg", "attr-defined", "comparison-overlap", "valid-type"]
 
 [tool.coverage.run]
 source = ["cendry"]
