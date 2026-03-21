@@ -9,6 +9,7 @@ from cendry import (
     AsyncCendry,
     Cendry,
     CendryError,
+    DocumentAlreadyExistsError,
     DocumentNotFoundError,
     Field,
     FieldFilter,
@@ -655,3 +656,77 @@ def test_save_validates_required_fields(mock_firestore_client: MagicMock):
     ctx = Cendry(client=mock_firestore_client)
     with pytest.raises(CendryError, match="Required fields are None"):
         ctx.save(city)
+
+
+# --- create ---
+
+
+def test_create_with_explicit_id(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    ctx = Cendry(client=mock_firestore_client)
+
+    result = ctx.create(city)
+
+    doc_ref = mock_firestore_client.collection.return_value.document
+    doc_ref.assert_called_with("SF")
+    doc_ref.return_value.create.assert_called_once_with(to_dict(city, by_alias=True))
+    assert result == doc_ref.return_value.id
+
+
+def test_create_with_auto_id(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA)  # id=None
+    doc_ref_mock = MagicMock()
+    doc_ref_mock.id = "auto-456"
+    mock_firestore_client.collection.return_value.document.return_value = doc_ref_mock
+
+    ctx = Cendry(client=mock_firestore_client)
+    result = ctx.create(city)
+
+    mock_firestore_client.collection.return_value.document.assert_called_with()
+    doc_ref_mock.create.assert_called_once()
+    assert city.id == "auto-456"
+    assert result == "auto-456"
+
+
+def test_create_raises_on_conflict(mock_firestore_client: MagicMock):
+    from google.cloud.exceptions import Conflict
+
+    city = City(**SF_DATA, id="SF")
+    doc_ref = mock_firestore_client.collection.return_value.document.return_value
+    doc_ref.id = "SF"
+    doc_ref.create.side_effect = Conflict("already exists")
+
+    ctx = Cendry(client=mock_firestore_client)
+    with pytest.raises(DocumentAlreadyExistsError) as exc_info:
+        ctx.create(city)
+
+    assert exc_info.value.collection == "cities"
+    assert exc_info.value.document_id == "SF"
+    assert isinstance(exc_info.value.__cause__, Conflict)
+
+
+def test_create_with_parent(mock_firestore_client: MagicMock):
+    parent = City(**SF_DATA, id="SF")
+    neighborhood = Neighborhood(name="Mission", population=60_000, id="MISSION")
+    parent_doc = mock_firestore_client.collection.return_value.document.return_value
+    sub_doc_ref = parent_doc.collection.return_value.document.return_value
+
+    ctx = Cendry(client=mock_firestore_client)
+    result = ctx.create(neighborhood, parent=parent)
+
+    sub_doc_ref.create.assert_called_once()
+    assert result == sub_doc_ref.id
+
+
+def test_create_validates_required_fields(mock_firestore_client: MagicMock):
+    city = City(
+        name=None,  # type: ignore[arg-type]
+        state="CA",
+        country="USA",
+        capital=False,
+        population=870_000,
+        regions=[],
+    )
+    ctx = Cendry(client=mock_firestore_client)
+    with pytest.raises(CendryError, match="Required fields are None"):
+        ctx.create(city)

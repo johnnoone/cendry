@@ -6,7 +6,9 @@ from google.cloud.firestore_v1.base_query import And as FsAnd
 from google.cloud.firestore_v1.base_query import FieldFilter as FsFieldFilter
 from google.cloud.firestore_v1.base_query import Or as FsOr
 
-from .exceptions import CendryError, DocumentNotFoundError
+from google.cloud.exceptions import Conflict
+
+from .exceptions import CendryError, DocumentAlreadyExistsError, DocumentNotFoundError
 from .filters import And, Or
 from .model import FieldFilterResult, Model
 from .query import AsyncQuery, Query
@@ -286,6 +288,35 @@ class Cendry(_BaseCendry):
         else:
             doc_ref = col_ref.document(instance.id)
         doc_ref.set(to_dict(instance, by_alias=True))
+        if instance.id is None:
+            instance.id = doc_ref.id
+        return doc_ref.id
+
+    def create(self, instance: T, *, parent: Model | None = None) -> str:
+        """Create a document. Raises if it already exists. Returns the document ID.
+
+        Args:
+            instance: Model instance to create.
+            parent: Parent document for subcollection writes.
+
+        Returns:
+            The document ID (auto-generated if instance.id was None).
+
+        Raises:
+            DocumentAlreadyExistsError: If the document already exists.
+        """
+        self._validate_required_fields(instance)
+        col_ref = self._get_collection_ref(type(instance), parent)
+        if instance.id is None:
+            doc_ref = col_ref.document()
+        else:
+            doc_ref = col_ref.document(instance.id)
+        try:
+            doc_ref.create(to_dict(instance, by_alias=True))
+        except Conflict as e:
+            raise DocumentAlreadyExistsError(
+                type(instance).__collection__, doc_ref.id
+            ) from e
         if instance.id is None:
             instance.id = doc_ref.id
         return doc_ref.id
