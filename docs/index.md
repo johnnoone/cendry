@@ -1,38 +1,116 @@
 # Cendry
 
-A Firestore ODM for Python. Typed models, composable filters, sync and async.
-
----
-
-| | |
-|---|---|
-| **[Tutorials](tutorials/index.md)** | Learn Cendry step by step. Start here if you're new. |
-| **[How-To Guides](how-to/index.md)** | Practical recipes for common tasks. |
-| **[Reference](reference/index.md)** | Technical details of every class and function. |
-| **[Explanation](explanation/index.md)** | Understand the design and architecture. |
-
-## Installation
+**A typed Firestore ODM for Python.** Define models, query with Python operators, get full IDE support.
 
 ```bash
 pip install cendry
 ```
 
-## Requirements
+---
 
-- Python >= 3.13
-- Google Cloud project with Firestore enabled
+## Define once, query naturally
 
-## Quick look
+=== "Model"
 
-```python
-from cendry import Model, Field, Cendry
+    ```python
+    from cendry import Model, Map, Field, field
 
-class City(Model, collection="cities"):
-    name: Field[str]
-    state: Field[str]
-    population: Field[int]
+    class Mayor(Map):
+        name: Field[str]
+        since: Field[int]
 
-with Cendry() as ctx:
-    for city in ctx.select(City, City.state == "CA").limit(10):
-        print(city.name, city.population)
-```
+    class City(Model, collection="cities"):
+        name: Field[str]
+        state: Field[str]
+        population: Field[int]
+        mayor: Field[Mayor | None] = field(default=None)
+    ```
+
+=== "Query"
+
+    ```python
+    from cendry import Cendry
+
+    with Cendry() as ctx:
+        # Python operators become Firestore filters
+        cities = (
+            ctx.select(City)
+            .filter(City.state == "CA")
+            .order_by(City.population.desc())
+            .limit(10)
+            .to_list()
+        )
+
+        for city in cities:
+            print(city.name, city.population)
+    ```
+
+=== "Async"
+
+    ```python
+    from cendry import AsyncCendry
+
+    async with AsyncCendry() as ctx:
+        city = await ctx.get(City, "SF")
+        print(city.name)
+
+        async for city in ctx.select(City, City.state == "CA"):
+            print(city.population)
+    ```
+
+---
+
+## Why Cendry?
+
+<div class="grid" markdown>
+
+**Type-safe from definition to query.** `Field[T]` annotations are validated at class definition time. Your IDE knows every field, every filter method, every return type.
+
+**Python operators, not strings.** Write `City.population > 1_000_000` instead of `FieldFilter("population", ">", 1000000)`. Compose with `&` and `|`.
+
+**Sync and async.** Same API, same models. `Cendry` for sync, `AsyncCendry` for async. Powered by anyio — works with asyncio and trio.
+
+**Thin wrapper, not an abstraction.** Cendry doesn't hide Firestore. `FieldFilter` is Firestore's own class. Query semantics match Firestore exactly.
+
+</div>
+
+---
+
+## Features at a glance
+
+| Feature | Example |
+|---------|---------|
+| **Typed models** | `name: Field[str]` — validated at class definition |
+| **Python filters** | `City.state == "CA"` — operators become Firestore filters |
+| **Chainable queries** | `.filter(...).order_by(...).limit(10).to_list()` |
+| **Pagination** | `for page in query.paginate(page_size=20):` |
+| **Batch fetch** | `ctx.get_many(City, ["SF", "LA", "NYC"])` |
+| **Field aliases** | `field(alias="displayName")` — Python name ≠ Firestore name |
+| **Enum support** | `Field[Status]` — auto-converts by value or name |
+| **Serialization** | `from_dict(City, {...})` and `to_dict(city)` |
+| **Custom types** | `register_type(Money, deserialize=...)` |
+| **Context manager** | `with Cendry() as ctx:` — auto-closes client |
+
+---
+
+## Get started
+
+<div markdown>
+
+**New to Cendry?** Start with the [First Steps tutorial](tutorials/first-steps.md) — install, define a model, run your first query in 5 minutes.
+
+**Know what you need?** Jump to a [How-To Guide](how-to/index.md) — practical recipes for models, filtering, aliases, async, and more.
+
+**Looking for specifics?** Check the [API Reference](reference/index.md) — every class, method, and parameter documented.
+
+**Want to understand the design?** Read the [Explanation](explanation/index.md) — architecture and design decisions.
+
+</div>
+
+---
+
+<div markdown style="text-align: center; color: #888; font-size: 0.9em;">
+
+Python >= 3.13 · Built on [google-cloud-firestore](https://pypi.org/project/google-cloud-firestore/) and [anyio](https://pypi.org/project/anyio/) · [GitHub](https://github.com/johnnoone/cendry)
+
+</div>

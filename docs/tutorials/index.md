@@ -1,6 +1,11 @@
 # Tutorials
 
-Tutorials take you through a series of steps to learn Cendry. Start here if you're new.
+Step-by-step guides to learn Cendry. Each tutorial builds on the previous one.
 
-- [First Steps](first-steps.md) — Install Cendry, define a model, and run your first query.
-- [Querying Data](querying.md) — Filter, order, paginate, and use the Query object.
+---
+
+**[First Steps](first-steps.md)**
+:   Install Cendry, define your first model, connect to Firestore, and read documents. *~5 minutes.*
+
+**[Querying Data](querying.md)**
+:   Filter with Python operators, chain queries, order results, paginate, and debug with copy-pasteable repr. *~10 minutes.*
