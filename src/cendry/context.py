@@ -1,16 +1,16 @@
-from __future__ import annotations
-
+import dataclasses
+import types
 from collections.abc import AsyncIterator, Iterator
-from typing import Any, TypeVar
+from typing import Any, TypeVar, get_args, get_type_hints
 
 from google.cloud.firestore import Client
 from google.cloud.firestore_v1.base_query import And as FsAnd
 from google.cloud.firestore_v1.base_query import FieldFilter as FsFieldFilter
 from google.cloud.firestore_v1.base_query import Or as FsOr
 
-from cendry.exceptions import CendryError, DocumentNotFound
-from cendry.filters import And, Filter, Or
-from cendry.model import FieldFilterResult, Model
+from cendry.exceptions import CendryError, DocumentNotFoundError
+from cendry.filters import And, Or
+from cendry.model import FieldFilterResult, Map, Model
 
 T = TypeVar("T", bound=Model)
 
@@ -22,18 +22,14 @@ class _BaseCendry:
 
     def _deserialize(self, model_class: type[T], doc_id: str, data: dict[str, Any]) -> T:
         """Convert a Firestore document dict to a model instance."""
-        import dataclasses
-        from typing import get_type_hints
-
         hints = get_type_hints(model_class, include_extras=True)
-        converted = {}
+        converted: dict[str, Any] = {}
         for f in dataclasses.fields(model_class):  # type: ignore[arg-type]
             if f.name == "id":
                 continue
             value = data.get(f.name)
             if value is not None and isinstance(value, dict):
-                hint = hints.get(f.name)
-                inner = self._resolve_map_type(hint)
+                inner = self._resolve_map_type(hints.get(f.name))
                 if inner is not None:
                     value = self._deserialize_map(inner, value)
             converted[f.name] = value
@@ -42,18 +38,8 @@ class _BaseCendry:
 
     def _resolve_map_type(self, hint: Any) -> type | None:
         """Resolve a type hint to a concrete Map subclass if applicable."""
-        import types
-        from typing import get_args, get_origin
-
-        from cendry.model import Field, Map
-
         if hint is None or isinstance(hint, str):
             return None
-        # Unwrap Field[T]
-        origin = get_origin(hint)
-        if origin is Field:
-            args = get_args(hint)
-            hint = args[0] if args else hint
         # Unwrap X | None (UnionType)
         if isinstance(hint, types.UnionType):
             non_none = [a for a in get_args(hint) if a is not type(None)]
@@ -65,16 +51,12 @@ class _BaseCendry:
 
     def _deserialize_map(self, map_class: type, data: dict[str, Any]) -> Any:
         """Recursively deserialize a Map from a dict."""
-        import dataclasses
-        from typing import get_type_hints
-
         hints = get_type_hints(map_class, include_extras=True)
-        converted = {}
+        converted: dict[str, Any] = {}
         for f in dataclasses.fields(map_class):
             value = data.get(f.name)
             if value is not None and isinstance(value, dict):
-                hint = hints.get(f.name)
-                inner = self._resolve_map_type(hint)
+                inner = self._resolve_map_type(hints.get(f.name))
                 if inner is not None:
                     value = self._deserialize_map(inner, value)
             converted[f.name] = value
@@ -134,36 +116,31 @@ class _BaseCendry:
         """Apply a single filter or composite filter to a query."""
         if isinstance(f, FsFieldFilter):
             return query.where(filter=f)
-        elif isinstance(f, FieldFilterResult):
-            fs_filter = FsFieldFilter(f.field_name, f.op, f.value)
-            return query.where(filter=fs_filter)
-        elif isinstance(f, And):
+        if isinstance(f, FieldFilterResult):
+            return query.where(filter=FsFieldFilter(f.field_name, f.op, f.value))
+        if isinstance(f, And):
             fs_filters = [self._to_firestore_filter(sub) for sub in f.filters]
             return query.where(filter=FsAnd(filters=fs_filters))
-        elif isinstance(f, Or):
+        if isinstance(f, Or):
             fs_filters = [self._to_firestore_filter(sub) for sub in f.filters]
             return query.where(filter=FsOr(filters=fs_filters))
-        else:
-            raise CendryError(f"Unknown filter type: {type(f)}")
+        raise CendryError(f"Unknown filter type: {type(f)}")
 
     def _to_firestore_filter(self, f: Any) -> Any:
         """Convert a cendry filter to a Firestore filter."""
         if isinstance(f, FsFieldFilter):
             return f
-        elif isinstance(f, FieldFilterResult):
+        if isinstance(f, FieldFilterResult):
             return FsFieldFilter(f.field_name, f.op, f.value)
-        elif isinstance(f, And):
+        if isinstance(f, And):
             return FsAnd(filters=[self._to_firestore_filter(sub) for sub in f.filters])
-        elif isinstance(f, Or):
+        if isinstance(f, Or):
             return FsOr(filters=[self._to_firestore_filter(sub) for sub in f.filters])
-        else:  # pragma: no cover
-            raise CendryError(f"Unknown filter type: {type(f)}")
+        raise CendryError(f"Unknown filter type: {type(f)}")  # pragma: no cover
 
     def _cursor_value(self, cursor: dict[str, Any] | Model) -> dict[str, Any]:
         """Convert a cursor to a dict for Firestore."""
         if isinstance(cursor, Model):
-            import dataclasses
-
             d: dict[str, Any] = dataclasses.asdict(cursor)  # type: ignore[call-overload]
             d.pop("id", None)
             return d
@@ -177,14 +154,16 @@ class Cendry(_BaseCendry):
         self._client = client or Client()
 
     def get(self, model_class: type[T], document_id: str, *, parent: Model | None = None) -> T:
-        """Get a document by ID. Raises DocumentNotFound if it doesn't exist."""
+        """Get a document by ID. Raises DocumentNotFoundError if it doesn't exist."""
         col_ref = self._get_collection_ref(model_class, parent)
         doc = col_ref.document(document_id).get()
         if not doc.exists:
-            raise DocumentNotFound(model_class.__collection__, document_id)
+            raise DocumentNotFoundError(model_class.__collection__, document_id)
         return self._deserialize(model_class, doc.id, doc.to_dict())
 
-    def find(self, model_class: type[T], document_id: str, *, parent: Model | None = None) -> T | None:
+    def find(
+        self, model_class: type[T], document_id: str, *, parent: Model | None = None
+    ) -> T | None:
         """Get a document by ID. Returns None if it doesn't exist."""
         col_ref = self._get_collection_ref(model_class, parent)
         doc = col_ref.document(document_id).get()
@@ -206,9 +185,15 @@ class Cendry(_BaseCendry):
     ) -> Iterator[T]:
         """Query documents. Returns a lazy iterator."""
         query = self._build_query(
-            model_class, filters, order_by=order_by, limit=limit,
-            start_at=start_at, start_after=start_after,
-            end_at=end_at, end_before=end_before, parent=parent,
+            model_class,
+            filters,
+            order_by=order_by,
+            limit=limit,
+            start_at=start_at,
+            start_after=start_after,
+            end_at=end_at,
+            end_before=end_before,
+            parent=parent,
         )
         for doc in query.stream():
             yield self._deserialize(model_class, doc.id, doc.to_dict())
@@ -226,9 +211,14 @@ class Cendry(_BaseCendry):
     ) -> Iterator[T]:
         """Query across all subcollections with the given collection name."""
         query = self._build_query(
-            model_class, filters, order_by=order_by, limit=limit,
-            start_at=start_at, start_after=start_after,
-            end_at=end_at, end_before=end_before,
+            model_class,
+            filters,
+            order_by=order_by,
+            limit=limit,
+            start_at=start_at,
+            start_after=start_after,
+            end_at=end_at,
+            end_before=end_before,
             collection_group=True,
         )
         for doc in query.stream():
@@ -245,15 +235,19 @@ class AsyncCendry(_BaseCendry):
             client = AsyncClient()
         self._client = client
 
-    async def get(self, model_class: type[T], document_id: str, *, parent: Model | None = None) -> T:
-        """Get a document by ID. Raises DocumentNotFound if it doesn't exist."""
+    async def get(
+        self, model_class: type[T], document_id: str, *, parent: Model | None = None
+    ) -> T:
+        """Get a document by ID. Raises DocumentNotFoundError if it doesn't exist."""
         col_ref = self._get_collection_ref(model_class, parent)
         doc = await col_ref.document(document_id).get()
         if not doc.exists:
-            raise DocumentNotFound(model_class.__collection__, document_id)
+            raise DocumentNotFoundError(model_class.__collection__, document_id)
         return self._deserialize(model_class, doc.id, doc.to_dict())
 
-    async def find(self, model_class: type[T], document_id: str, *, parent: Model | None = None) -> T | None:
+    async def find(
+        self, model_class: type[T], document_id: str, *, parent: Model | None = None
+    ) -> T | None:
         """Get a document by ID. Returns None if it doesn't exist."""
         col_ref = self._get_collection_ref(model_class, parent)
         doc = await col_ref.document(document_id).get()
@@ -275,9 +269,15 @@ class AsyncCendry(_BaseCendry):
     ) -> AsyncIterator[T]:
         """Query documents. Returns an async iterator."""
         query = self._build_query(
-            model_class, filters, order_by=order_by, limit=limit,
-            start_at=start_at, start_after=start_after,
-            end_at=end_at, end_before=end_before, parent=parent,
+            model_class,
+            filters,
+            order_by=order_by,
+            limit=limit,
+            start_at=start_at,
+            start_after=start_after,
+            end_at=end_at,
+            end_before=end_before,
+            parent=parent,
         )
         async for doc in query.stream():
             yield self._deserialize(model_class, doc.id, doc.to_dict())
@@ -295,9 +295,14 @@ class AsyncCendry(_BaseCendry):
     ) -> AsyncIterator[T]:
         """Query across all subcollections with the given collection name."""
         query = self._build_query(
-            model_class, filters, order_by=order_by, limit=limit,
-            start_at=start_at, start_after=start_after,
-            end_at=end_at, end_before=end_before,
+            model_class,
+            filters,
+            order_by=order_by,
+            limit=limit,
+            start_at=start_at,
+            start_after=start_after,
+            end_at=end_at,
+            end_before=end_before,
             collection_group=True,
         )
         async for doc in query.stream():

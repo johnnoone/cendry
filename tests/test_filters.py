@@ -1,6 +1,8 @@
-from cendry import FieldFilter, And, Or
-from cendry.filters import Filter
+import pytest
 from google.cloud.firestore_v1.base_query import FieldFilter as FirestoreFieldFilter
+
+from cendry import And, CendryError, FieldFilter, Or
+from cendry.filters import Filter
 
 
 def test_field_filter_is_firestore_field_filter():
@@ -37,16 +39,10 @@ def test_and_nested_in_or():
 
 
 def test_and_requires_at_least_two():
-    import pytest
-    from cendry import CendryError
-
     with pytest.raises(CendryError):
         And(FieldFilter("state", "==", "CA"))
 
 
 def test_or_requires_at_least_two():
-    import pytest
-    from cendry import CendryError
-
     with pytest.raises(CendryError):
         Or(FieldFilter("state", "==", "CA"))

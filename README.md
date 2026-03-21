@@ -48,7 +48,7 @@ from cendry import Cendry
 
 context = Cendry()
 
-# Get by ID (raises DocumentNotFound if missing)
+# Get by ID (raises DocumentNotFoundError if missing)
 city = context.get(City, "SF")
 
 # Find by ID (returns None if missing)
@@ -168,11 +168,11 @@ for n in context.select_group(Neighborhood, Neighborhood.population.gt(50000)):
 ## Exceptions
 
 ```python
-from cendry import CendryError, DocumentNotFound
+from cendry import CendryError, DocumentNotFoundError
 
 try:
     city = context.get(City, "NOPE")
-except DocumentNotFound as e:
+except DocumentNotFoundError as e:
     print(e.collection, e.document_id)
 ```
 

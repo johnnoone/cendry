@@ -11,7 +11,7 @@ Feature: Context operations
     Scenario: Get a non-existent document raises error
         Given a Firestore collection "cities" without document "NOPE"
         When I call get with model City and id "NOPE"
-        Then a DocumentNotFound error is raised
+        Then a DocumentNotFoundError error is raised
 
     Scenario: Find a non-existent document returns None
         Given a Firestore collection "cities" without document "NOPE"

@@ -2,11 +2,10 @@ import dataclasses
 
 import pytest
 
-from cendry import Model, Map, Field, field
+from cendry import Field, Map, Model, field
 from cendry.filters import Filter
 
-
-# --- Map tests ---
+# --- Map ---
 
 
 def test_map_is_dataclass():
@@ -46,11 +45,12 @@ def test_map_nested_in_map():
     assert p.address.street == "123 Main"
 
 
-# --- Model tests ---
+# --- Model ---
 
 
 def test_model_requires_collection():
     with pytest.raises(TypeError):
+
         class Bad(Model):
             name: Field[str]
 
@@ -66,16 +66,14 @@ def test_model_has_id():
     class City(Model, collection="cities"):
         name: Field[str]
 
-    c = City(name="SF")
-    assert c.id is None
+    assert City(name="SF").id is None
 
 
 def test_model_id_can_be_set():
     class City(Model, collection="cities"):
         name: Field[str]
 
-    c = City(id="123", name="SF")
-    assert c.id == "123"
+    assert City(id="123", name="SF").id == "123"
 
 
 def test_model_collection_stored():
@@ -90,8 +88,7 @@ def test_model_with_default():
         name: Field[str]
         nickname: Field[str | None] = field(default=None)
 
-    c = City(name="SF")
-    assert c.nickname is None
+    assert City(name="SF").nickname is None
 
 
 def test_model_cannot_nest_model():
@@ -99,6 +96,7 @@ def test_model_cannot_nest_model():
         name: Field[str]
 
     with pytest.raises(TypeError, match="cannot nest"):
+
         class Country(Model, collection="countries"):
             city: Field[City]
 
@@ -108,91 +106,82 @@ def test_map_cannot_nest_model():
         name: Field[str]
 
     with pytest.raises(TypeError, match="cannot nest"):
+
         class Info(Map):
             city: Field[City]
 
 
-# --- Field descriptor filter method tests ---
+# --- Field descriptor filters ---
 
 
 def test_field_descriptor_eq():
     class City(Model, collection="cities"):
         state: Field[str]
 
-    result = City.state.eq("CA")
-    assert isinstance(result, Filter)
+    assert isinstance(City.state.eq("CA"), Filter)
 
 
 def test_field_descriptor_ne():
     class City(Model, collection="cities"):
         state: Field[str]
 
-    result = City.state.ne("CA")
-    assert isinstance(result, Filter)
+    assert isinstance(City.state.ne("CA"), Filter)
 
 
 def test_field_descriptor_gt():
     class City(Model, collection="cities"):
         population: Field[int]
 
-    result = City.population.gt(1000000)
-    assert isinstance(result, Filter)
+    assert isinstance(City.population.gt(1_000_000), Filter)
 
 
 def test_field_descriptor_gte():
     class City(Model, collection="cities"):
         population: Field[int]
 
-    result = City.population.gte(1000000)
-    assert isinstance(result, Filter)
+    assert isinstance(City.population.gte(1_000_000), Filter)
 
 
 def test_field_descriptor_lt():
     class City(Model, collection="cities"):
         population: Field[int]
 
-    result = City.population.lt(500)
-    assert isinstance(result, Filter)
+    assert isinstance(City.population.lt(500), Filter)
 
 
 def test_field_descriptor_lte():
     class City(Model, collection="cities"):
         population: Field[int]
 
-    result = City.population.lte(500)
-    assert isinstance(result, Filter)
+    assert isinstance(City.population.lte(500), Filter)
 
 
 def test_field_descriptor_array_contains():
     class City(Model, collection="cities"):
         regions: Field[list[str]]
 
-    result = City.regions.array_contains("west_coast")
-    assert isinstance(result, Filter)
+    assert isinstance(City.regions.array_contains("west_coast"), Filter)
 
 
 def test_field_descriptor_array_contains_any():
     class City(Model, collection="cities"):
         regions: Field[list[str]]
 
-    result = City.regions.array_contains_any(["west_coast", "east_coast"])
-    assert isinstance(result, Filter)
+    assert isinstance(City.regions.array_contains_any(["west_coast", "east_coast"]), Filter)
 
 
 def test_field_descriptor_is_in():
     class City(Model, collection="cities"):
         country: Field[str]
 
-    result = City.country.is_in(["USA", "Japan"])
-    assert isinstance(result, Filter)
+    assert isinstance(City.country.is_in(["USA", "Japan"]), Filter)
 
 
 def test_field_descriptor_not_in():
     class City(Model, collection="cities"):
         country: Field[str]
 
-    result = City.country.not_in(["China"])
-    assert isinstance(result, Filter)
+    assert isinstance(City.country.not_in(["China"]), Filter)
 
 
 def test_field_descriptor_composition_and():
@@ -200,8 +189,7 @@ def test_field_descriptor_composition_and():
         state: Field[str]
         population: Field[int]
 
-    result = City.state.ne("CA") & City.population.gt(1000000)
-    assert isinstance(result, Filter)
+    assert isinstance(City.state.ne("CA") & City.population.gt(1_000_000), Filter)
 
 
 def test_field_descriptor_composition_or():
@@ -209,5 +197,4 @@ def test_field_descriptor_composition_or():
         state: Field[str]
         country: Field[str]
 
-    result = City.state.eq("CA") | City.country.eq("Japan")
-    assert isinstance(result, Filter)
+    assert isinstance(City.state.eq("CA") | City.country.eq("Japan"), Filter)

@@ -1,13 +1,11 @@
 """Shared test configuration."""
 
-from __future__ import annotations
-
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
-from cendry import Model, Field, Map, field
+from cendry import Field, Map, Model, field
 
 
 class Mayor(Map):
@@ -32,7 +30,10 @@ class Neighborhood(Model, collection="neighborhoods"):
 
 
 def make_mock_document(
-    doc_id: str, data: dict[str, Any], exists: bool = True
+    doc_id: str,
+    data: dict[str, Any],
+    *,
+    exists: bool = True,
 ) -> MagicMock:
     """Create a mock Firestore DocumentSnapshot."""
     doc = MagicMock()

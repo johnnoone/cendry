@@ -27,9 +27,7 @@ def test_field_descriptor_filter():
 
 
 @given(
-    parsers.parse(
-        'a FieldFilter with field "{field}", operator "{op}" and value "{value}"'
-    ),
+    parsers.parse('a FieldFilter with field "{field}", operator "{op}" and value "{value}"'),
     target_fixture="field_filter",
 )
 def create_field_filter(field: str, op: str, value: str):

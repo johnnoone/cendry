@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 from pytest_bdd import given, parsers, scenario, then, when
 
-from cendry import Cendry, DocumentNotFound
+from cendry import Cendry, DocumentNotFoundError
 from tests.conftest import City, make_mock_document
 
 FEATURES = "features"
@@ -29,10 +29,17 @@ def test_find_not_found():
 )
 def collection_with_doc(doc_id: str):
     client = MagicMock()
-    doc = make_mock_document(doc_id, {
-        "name": "San Francisco", "state": "CA", "country": "USA",
-        "capital": False, "population": 870000, "regions": ["west_coast"],
-    })
+    doc = make_mock_document(
+        doc_id,
+        {
+            "name": "San Francisco",
+            "state": "CA",
+            "country": "USA",
+            "capital": False,
+            "population": 870000,
+            "regions": ["west_coast"],
+        },
+    )
     client.collection.return_value.document.return_value.get.return_value = doc
     return Cendry(client=client), doc_id
 
@@ -56,7 +63,7 @@ def call_get(context_and_id, doc_id: str):
     ctx, _ = context_and_id
     try:
         return ctx.get(City, doc_id)
-    except DocumentNotFound as e:
+    except DocumentNotFoundError as e:
         return e
 
 
@@ -75,9 +82,9 @@ def check_city(get_result, doc_id: str):
     assert get_result.id == doc_id
 
 
-@then("a DocumentNotFound error is raised")
+@then("a DocumentNotFoundError error is raised")
 def check_not_found(get_result):
-    assert isinstance(get_result, DocumentNotFound)
+    assert isinstance(get_result, DocumentNotFoundError)
 
 
 @then("the result is None")

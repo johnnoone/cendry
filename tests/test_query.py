@@ -1,5 +1,4 @@
-from cendry import Asc, Desc, Model, Field
-from cendry.model import FieldDescriptor
+from cendry import Asc, Desc, Field, Model
 
 
 def test_asc_with_string():

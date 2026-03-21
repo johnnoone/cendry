@@ -1,4 +1,4 @@
-from cendry import CendryError, DocumentNotFound
+from cendry import CendryError, DocumentNotFoundError
 
 
 def test_cendry_error_is_exception():
@@ -6,10 +6,10 @@ def test_cendry_error_is_exception():
 
 
 def test_document_not_found_is_cendry_error():
-    assert issubclass(DocumentNotFound, CendryError)
+    assert issubclass(DocumentNotFoundError, CendryError)
 
 
 def test_document_not_found_message():
-    err = DocumentNotFound("cities", "SF")
+    err = DocumentNotFoundError("cities", "SF")
     assert "cities" in str(err)
     assert "SF" in str(err)

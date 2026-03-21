@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from google.cloud.firestore_v1.base_query import FieldFilter as FieldFilter
 
 from cendry.exceptions import CendryError
@@ -8,10 +6,10 @@ from cendry.exceptions import CendryError
 class Filter:
     """Base class for composable filters."""
 
-    def __and__(self, other: Filter | FieldFilter) -> And:
+    def __and__(self, other: "Filter | FieldFilter") -> "And":
         return And(self, other)
 
-    def __or__(self, other: Filter | FieldFilter) -> Or:
+    def __or__(self, other: "Filter | FieldFilter") -> "Or":
         return Or(self, other)
 
 

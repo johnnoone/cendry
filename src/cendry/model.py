@@ -1,11 +1,8 @@
-from __future__ import annotations
-
 import dataclasses
-from typing import Any, Generic, TypeVar, get_args, get_origin
+import types
+from typing import Any, get_args, get_origin
 
 from cendry.filters import Filter
-
-T = TypeVar("T")
 
 
 class FieldFilterResult(Filter):
@@ -69,18 +66,18 @@ class FieldDescriptor:
         return self._make_filter("not-in", value)
 
 
-class Field(Generic[T]):
+class Field[T]:
     """Type annotation marker for model fields.
 
     Used as Field[str], Field[int], etc. in model class annotations.
     At runtime, the metaclass replaces these with FieldDescriptor instances.
     """
 
-    pass
-
 
 def field(
-    *, default: Any = dataclasses.MISSING, default_factory: Any = dataclasses.MISSING
+    *,
+    default: Any = dataclasses.MISSING,
+    default_factory: Any = dataclasses.MISSING,
 ) -> Any:
     """Configure a model field with defaults."""
     kwargs: dict[str, Any] = {}
@@ -97,15 +94,14 @@ def _unwrap_field_type(hint: Any) -> Any:
     args = get_args(hint)
     if origin is Field and args:
         return args[0]
-    return hint
+    return hint  # pragma: no cover
 
 
 def _get_inner_type(hint: Any) -> type | None:
     """Get the concrete inner type, unwrapping Field[T] and T | None."""
     inner = _unwrap_field_type(hint)
-    # Unwrap X | None
     origin = get_origin(inner)
-    if origin is type(int | None):  # types.UnionType
+    if origin is types.UnionType:
         non_none = [a for a in get_args(inner) if a is not type(None)]
         if len(non_none) == 1:
             inner = non_none[0]
@@ -141,9 +137,9 @@ class _MapMeta(type):
 
         # Rewrite Field[T] annotations to plain T for dataclasses
         raw_annotations = cls.__annotations__.copy()
-        rewritten: dict[str, Any] = {}
-        for attr_name, hint in raw_annotations.items():
-            rewritten[attr_name] = _unwrap_field_type(hint)
+        rewritten: dict[str, Any] = {
+            attr_name: _unwrap_field_type(hint) for attr_name, hint in raw_annotations.items()
+        }
 
         # For Model subclasses, inject `id` field if not already present
         is_model_subclass = any(
@@ -155,25 +151,19 @@ class _MapMeta(type):
 
         cls.__annotations__ = rewritten
 
-        # Validate no nested Models
         _validate_no_nested_models(cls, raw_annotations)
 
-        # Apply dataclass
         cls = dataclasses.dataclass(cls)  # type: ignore[arg-type,assignment]
 
-        # Set up FieldDescriptor on the class for each field
         for f in dataclasses.fields(cls):  # type: ignore[arg-type]
-            if f.name == "id":
-                continue
-            setattr(cls, f.name, FieldDescriptor(f.name))
+            if f.name != "id":
+                setattr(cls, f.name, FieldDescriptor(f.name))
 
         return cls
 
 
 class Map(metaclass=_MapMeta):
     """Base class for embedded Firestore maps (nested data)."""
-
-    pass
 
 
 class Model(Map):

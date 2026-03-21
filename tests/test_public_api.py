@@ -8,7 +8,7 @@ def test_public_api_exports():
         "Cendry",
         "CendryError",
         "Desc",
-        "DocumentNotFound",
+        "DocumentNotFoundError",
         "Field",
         "FieldFilter",
         "Map",
