@@ -1,0 +1,82 @@
+site_name: Cendry
+site_description: A Firestore ODM for Python
+site_url: https://johnnoone.github.io/cendry/
+
+repo_url: https://github.com/johnnoone/cendry
+repo_name: johnnoone/cendry
+
+exclude_docs: |
+  superpowers/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+    - search.highlight
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Tutorials:
+    - tutorials/index.md
+    - First Steps: tutorials/first-steps.md
+    - Querying Data: tutorials/querying.md
+  - How-To Guides:
+    - how-to/index.md
+    - Define Models: how-to/models.md
+    - Filter and Query: how-to/filtering.md
+    - Use Aliases: how-to/aliases.md
+    - Serialize Data: how-to/serialization.md
+    - Extend Type Validation: how-to/type-validation.md
+    - Use Async: how-to/async.md
+  - Reference:
+    - reference/index.md
+    - Models: reference/models.md
+    - Context: reference/context.md
+    - Query: reference/query.md
+    - Filters: reference/filters.md
+    - Serialization: reference/serialization.md
+    - Types: reference/types.md
+    - Exceptions: reference/exceptions.md
+  - Explanation:
+    - explanation/index.md
+    - Architecture: explanation/architecture.md
+    - Design Decisions: explanation/design-decisions.md
