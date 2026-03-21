@@ -371,6 +371,40 @@ def test_get_handler_kwargs(registry: TypeRegistry):
 # --- register_type with handlers ---
 
 
+def test_kwargs_handler_serialize_called(registry: TypeRegistry):
+    class Money:
+        pass
+
+    registry.register(Money, serialize=lambda v: "serialized", deserialize=lambda v: "deserialized")
+    handler = registry.get_handler(Money)
+    assert handler is not None
+    assert handler.serialize(42) == "serialized"
+    assert handler.deserialize(42) == "deserialized"
+
+
+def test_kwargs_handler_serialize_fallback(registry: TypeRegistry):
+    class Money:
+        pass
+
+    registry.register(Money, deserialize=lambda v: "deserialized")
+    handler = registry.get_handler(Money)
+    assert handler is not None
+    assert handler.serialize(42) == 42  # identity fallback
+    assert handler.deserialize(42) == "deserialized"
+
+
+def test_get_handler_predicate_typeerror(registry: TypeRegistry):
+    from cendry.types import BaseTypeHandler
+
+    def bad_predicate(cls: type) -> bool:
+        raise TypeError("bad")
+
+    handler = BaseTypeHandler()
+    registry.register(bad_predicate, handler=handler)
+    # Predicate raises, should be skipped
+    assert registry.get_handler(str) is None
+
+
 def test_register_type_with_kwargs():
     from cendry.types import default_registry, register_type
 

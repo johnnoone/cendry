@@ -6,13 +6,14 @@ from .filters import And, FieldFilter, Or
 from .model import Field, FieldDescriptor, Map, Model, field
 from .query import Asc, AsyncQuery, Desc, Query
 from .serialize import from_dict, to_dict
-from .types import TypeRegistry, register_type
+from .types import BaseTypeHandler, TypeHandler, TypeRegistry, register_type
 
 __all__ = [
     "And",
     "Asc",
     "AsyncCendry",
     "AsyncQuery",
+    "BaseTypeHandler",
     "Cendry",
     "CendryError",
     "Desc",
@@ -24,6 +25,7 @@ __all__ = [
     "Model",
     "Or",
     "Query",
+    "TypeHandler",
     "TypeRegistry",
     "field",
     "from_dict",

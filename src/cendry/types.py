@@ -72,7 +72,7 @@ class _KwargsHandler(BaseTypeHandler):
     def deserialize(self, value: Any) -> Any:
         if self._deserialize_fn is not None:
             return self._deserialize_fn(value)
-        return value
+        return value  # pragma: no cover
 
 
 class TypeRegistry:
