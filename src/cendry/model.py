@@ -193,7 +193,7 @@ class Model(Map):
         super().__init_subclass__(**kwargs)
         if collection is None:
             raise TypeError(
-                f"Model '{cls.__name__}' must specify collection: "
-                f"class {cls.__name__}(Model, collection='...')"
+                f"class {cls.__name__}(Model) requires a collection name.\n"
+                f'  Example: class {cls.__name__}(Model, collection="{cls.__name__.lower()}s")'
             )
         cls.__collection__ = collection
