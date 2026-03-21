@@ -4,6 +4,7 @@ from typing import Any
 from .exceptions import CendryError, DocumentNotFoundError
 from .model import FieldDescriptor, Model
 from .serialize import deserialize
+from .types import TypeRegistry, default_registry
 
 
 class _Order:
@@ -57,6 +58,7 @@ class Query[T: Model]:
         model_class: type[T],
         apply_filter: Callable[[Any, Any], Any],
         *,
+        registry: TypeRegistry | None = None,
         _filters: list[Any] | None = None,
         _order_by: list[Any] | None = None,
         _limit: int | None = None,
@@ -64,6 +66,7 @@ class Query[T: Model]:
         self._query = firestore_query
         self._model_class = model_class
         self._apply_filter = apply_filter
+        self._registry = registry or default_registry
         self._filters_repr = _filters or []
         self._order_by_repr = _order_by or []
         self._limit_repr = _limit
@@ -79,7 +82,7 @@ class Query[T: Model]:
 
     def __iter__(self) -> Iterator[T]:
         for doc in self._query.stream():
-            yield deserialize(self._model_class, doc.id, doc.to_dict())
+            yield deserialize(self._model_class, doc.id, doc.to_dict(), registry=self._registry)
 
     def filter(self, *filters: Any) -> "Query[T]":
         """Add filters to the query. Returns a new Query."""
@@ -97,6 +100,7 @@ class Query[T: Model]:
             query,
             self._model_class,
             self._apply_filter,
+            registry=self._registry,
             _filters=new_filters,
             _order_by=self._order_by_repr,
             _limit=self._limit_repr,
@@ -115,6 +119,7 @@ class Query[T: Model]:
             query,
             self._model_class,
             self._apply_filter,
+            registry=self._registry,
             _filters=self._filters_repr,
             _order_by=new_orders,
             _limit=self._limit_repr,
@@ -126,6 +131,7 @@ class Query[T: Model]:
             self._query.limit(n),
             self._model_class,
             self._apply_filter,
+            registry=self._registry,
             _filters=self._filters_repr,
             _order_by=self._order_by_repr,
             _limit=n,
@@ -137,13 +143,17 @@ class Query[T: Model]:
 
     def first(self) -> T | None:
         """Fetch the first matching document, or None."""
-        for item in Query(self._query.limit(1), self._model_class, self._apply_filter):
+        for item in Query(
+            self._query.limit(1), self._model_class, self._apply_filter, registry=self._registry
+        ):
             return item
         return None
 
     def one(self) -> T:
         """Fetch exactly one document. Raises if zero or more than one."""
-        items = Query(self._query.limit(2), self._model_class, self._apply_filter).to_list()
+        items = Query(
+            self._query.limit(2), self._model_class, self._apply_filter, registry=self._registry
+        ).to_list()
         if not items:
             raise DocumentNotFoundError(self._model_class.__collection__, "<query>")
         if len(items) > 1:
@@ -169,7 +179,9 @@ class Query[T: Model]:
             last_doc = None
             for doc in query.limit(page_size).stream():
                 last_doc = doc
-                items.append(deserialize(self._model_class, doc.id, doc.to_dict()))
+                items.append(
+                    deserialize(self._model_class, doc.id, doc.to_dict(), registry=self._registry)
+                )
             if not items:
                 break
             yield items
@@ -191,6 +203,7 @@ class AsyncQuery[T: Model]:
         model_class: type[T],
         apply_filter: Callable[[Any, Any], Any],
         *,
+        registry: TypeRegistry | None = None,
         _filters: list[Any] | None = None,
         _order_by: list[Any] | None = None,
         _limit: int | None = None,
@@ -198,6 +211,7 @@ class AsyncQuery[T: Model]:
         self._query = firestore_query
         self._model_class = model_class
         self._apply_filter = apply_filter
+        self._registry = registry or default_registry
         self._filters_repr = _filters or []
         self._order_by_repr = _order_by or []
         self._limit_repr = _limit
@@ -213,7 +227,7 @@ class AsyncQuery[T: Model]:
 
     async def __aiter__(self) -> AsyncIterator[T]:
         async for doc in self._query.stream():
-            yield deserialize(self._model_class, doc.id, doc.to_dict())
+            yield deserialize(self._model_class, doc.id, doc.to_dict(), registry=self._registry)
 
     def filter(self, *filters: Any) -> "AsyncQuery[T]":
         """Add filters to the query. Returns a new AsyncQuery."""
@@ -231,6 +245,7 @@ class AsyncQuery[T: Model]:
             query,
             self._model_class,
             self._apply_filter,
+            registry=self._registry,
             _filters=new_filters,
             _order_by=self._order_by_repr,
             _limit=self._limit_repr,
@@ -249,6 +264,7 @@ class AsyncQuery[T: Model]:
             query,
             self._model_class,
             self._apply_filter,
+            registry=self._registry,
             _filters=self._filters_repr,
             _order_by=new_orders,
             _limit=self._limit_repr,
@@ -260,6 +276,7 @@ class AsyncQuery[T: Model]:
             self._query.limit(n),
             self._model_class,
             self._apply_filter,
+            registry=self._registry,
             _filters=self._filters_repr,
             _order_by=self._order_by_repr,
             _limit=n,
@@ -271,14 +288,19 @@ class AsyncQuery[T: Model]:
 
     async def first(self) -> T | None:
         """Fetch the first matching document, or None."""
-        async for item in AsyncQuery(self._query.limit(1), self._model_class, self._apply_filter):
+        async for item in AsyncQuery(
+            self._query.limit(1), self._model_class, self._apply_filter, registry=self._registry
+        ):
             return item
         return None
 
     async def one(self) -> T:
         """Fetch exactly one document. Raises if zero or more than one."""
         items = await AsyncQuery(
-            self._query.limit(2), self._model_class, self._apply_filter
+            self._query.limit(2),
+            self._model_class,
+            self._apply_filter,
+            registry=self._registry,
         ).to_list()
         if not items:
             raise DocumentNotFoundError(self._model_class.__collection__, "<query>")
@@ -305,7 +327,9 @@ class AsyncQuery[T: Model]:
             last_doc = None
             async for doc in query.limit(page_size).stream():
                 last_doc = doc
-                items.append(deserialize(self._model_class, doc.id, doc.to_dict()))
+                items.append(
+                    deserialize(self._model_class, doc.id, doc.to_dict(), registry=self._registry)
+                )
             if not items:
                 break
             yield items
