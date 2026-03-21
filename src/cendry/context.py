@@ -31,6 +31,22 @@ class _BaseCendry:
             return parent_ref.collection(model_class.__collection__)
         return self._client.collection(model_class.__collection__)
 
+    def _validate_required_fields(self, instance: Model) -> None:
+        """Raise CendryError if any required fields are None."""
+        missing = []
+        for f in dataclasses.fields(instance):
+            if f.name == "id":
+                continue
+            has_default = (
+                f.default is not dataclasses.MISSING
+                or f.default_factory is not dataclasses.MISSING
+            )
+            if not has_default and getattr(instance, f.name) is None:
+                missing.append(f.name)
+        if missing:
+            fields = ", ".join(missing)
+            raise CendryError(f"Required fields are None: {fields}")
+
     def _build_query(
         self,
         model_class: type[T],
