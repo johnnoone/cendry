@@ -416,6 +416,26 @@ class Cendry(_BaseCendry):
         except NotFound as e:
             raise DocumentNotFoundError(model_class.__collection__, doc_id) from e
 
+    def refresh(self, instance: T, *, parent: Model | None = None) -> None:
+        """Re-fetch a document from Firestore and update the instance in-place.
+
+        Args:
+            instance: Model instance to refresh.
+            parent: Parent document for subcollection queries.
+
+        Raises:
+            DocumentNotFoundError: If the document does not exist.
+        """
+        if instance.id is None:
+            raise CendryError("Cannot refresh a model instance with id=None")
+        col_ref = self._get_collection_ref(type(instance), parent)
+        doc = col_ref.document(instance.id).get()
+        if not doc.exists:
+            raise DocumentNotFoundError(type(instance).__collection__, instance.id)
+        fresh = deserialize(type(instance), doc.id, doc.to_dict(), registry=self.type_registry)
+        for f in dataclasses.fields(instance):
+            setattr(instance, f.name, getattr(fresh, f.name))
+
 
 class AsyncCendry(_BaseCendry):
     """Asynchronous Firestore ODM context.

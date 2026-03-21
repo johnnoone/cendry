@@ -1249,3 +1249,53 @@ def test_update_with_custom_type_handler(mock_firestore_client: MagicMock):
         mock_firestore_client.collection.return_value.document.return_value.update.call_args[0][0]
     )
     assert call_data["temp"] == 25.0
+
+
+# --- refresh ---
+
+
+def test_refresh_mutates_instance(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    updated_data = {**SF_DATA, "name": "San Fran", "population": 900_000}
+    doc = make_mock_document("SF", updated_data)
+    mock_firestore_client.collection.return_value.document.return_value.get.return_value = doc
+
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.refresh(city)
+
+    assert city.name == "San Fran"
+    assert city.population == 900_000
+    assert city.id == "SF"
+
+
+def test_refresh_no_id_raises(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA)  # id=None
+    ctx = Cendry(client=mock_firestore_client)
+
+    with pytest.raises(CendryError, match="Cannot refresh a model instance with id=None"):
+        ctx.refresh(city)
+
+
+def test_refresh_missing_doc_raises(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    doc = make_mock_document("SF", {}, exists=False)
+    mock_firestore_client.collection.return_value.document.return_value.get.return_value = doc
+
+    ctx = Cendry(client=mock_firestore_client)
+    with pytest.raises(DocumentNotFoundError):
+        ctx.refresh(city)
+
+
+def test_refresh_with_parent(mock_firestore_client: MagicMock):
+    parent = City(**SF_DATA, id="SF")
+    neighborhood = Neighborhood(name="Mission", population=60_000, id="MISSION")
+    updated_data = {"name": "Mission District", "population": 65_000}
+    doc = make_mock_document("MISSION", updated_data)
+    parent_doc = mock_firestore_client.collection.return_value.document.return_value
+    parent_doc.collection.return_value.document.return_value.get.return_value = doc
+
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.refresh(neighborhood, parent=parent)
+
+    assert neighborhood.name == "Mission District"
+    assert neighborhood.population == 65_000
