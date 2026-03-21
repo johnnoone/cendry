@@ -18,21 +18,38 @@ def _get_alias(f: dataclasses.Field[Any]) -> str:
     return result
 
 
-def resolve_map_type(hint: Any) -> type | None:
-    """Resolve a type hint to a concrete Map subclass if applicable."""
+def _resolve_inner_type(hint: Any) -> type | None:
+    """Resolve a type hint to a concrete type, unwrapping Optional."""
     if hint is None or isinstance(hint, str):
         return None
     if isinstance(hint, types.UnionType):
         non_none = [a for a in get_args(hint) if a is not type(None)]
         if len(non_none) == 1:
             hint = non_none[0]
-    if isinstance(hint, type) and issubclass(hint, Map):
+    if isinstance(hint, type):
         return hint
     return None
 
 
+def resolve_map_type(hint: Any) -> type | None:
+    """Resolve a type hint to a concrete Map subclass if applicable."""
+    inner = _resolve_inner_type(hint)
+    if inner is not None and issubclass(inner, Map):
+        return inner
+    return None
+
+
 def _deserialize_value(value: Any, hint: Any) -> Any:
-    """Deserialize a single value, handling nested Maps."""
+    """Deserialize a single value, checking handlers then Map nesting."""
+    from .types import default_registry
+
+    if value is None:
+        return None
+    inner_type = _resolve_inner_type(hint)
+    if inner_type is not None:
+        handler = default_registry.get_handler(inner_type)
+        if handler is not None:
+            return handler.deserialize(value)
     if value is not None and isinstance(value, dict):
         inner = resolve_map_type(hint)
         if inner is not None:
@@ -109,14 +126,30 @@ def from_dict[T: Model](
     return deserialize(model_class, doc_id, remapped)
 
 
+def _serialize_value(value: Any, hint: Any, *, by_alias: bool) -> Any:
+    """Serialize a single value, checking handlers then Map nesting."""
+    if value is None:
+        return None
+    from .types import default_registry
+
+    inner_type = _resolve_inner_type(hint)
+    if inner_type is not None:
+        handler = default_registry.get_handler(inner_type)
+        if handler is not None:
+            return handler.serialize(value)
+    if isinstance(value, Map):
+        return _map_to_dict(value, by_alias=by_alias)
+    return value
+
+
 def _map_to_dict(instance: Map, *, by_alias: bool) -> dict[str, Any]:
     """Convert a Map instance to a dict recursively."""
+    hints = _cached_type_hints(type(instance))
     result: dict[str, Any] = {}
     for f in dataclasses.fields(instance):
         value = getattr(instance, f.name)
         key = _get_alias(f) if by_alias else f.name
-        if isinstance(value, Map):  # pragma: no cover
-            value = _map_to_dict(value, by_alias=by_alias)
+        value = _serialize_value(value, hints.get(f.name), by_alias=by_alias)
         result[key] = value
     return result
 
