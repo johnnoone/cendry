@@ -21,6 +21,9 @@ class And(Filter):
             raise CendryError("And requires at least 2 filters")
         self.filters = filters
 
+    def __repr__(self) -> str:
+        return f"And({', '.join(repr(f) for f in self.filters)})"
+
 
 class Or(Filter):
     """Composite OR filter."""
@@ -29,3 +32,6 @@ class Or(Filter):
         if len(filters) < 2:
             raise CendryError("Or requires at least 2 filters")
         self.filters = filters
+
+    def __repr__(self) -> str:
+        return f"Or({', '.join(repr(f) for f in self.filters)})"

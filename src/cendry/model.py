@@ -12,6 +12,9 @@ class FieldFilterResult(Filter):
         self.op = op
         self.value = value
 
+    def __repr__(self) -> str:
+        return f'FieldFilter("{self.field_name}", "{self.op}", {self.value!r})'
+
 
 class FieldDescriptor:
     """Runtime descriptor installed on model classes by the metaclass.
