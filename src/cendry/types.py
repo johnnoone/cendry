@@ -34,14 +34,28 @@ class TypeRegistry:
         self._checkers: list[Callable[[type], bool]] = []
 
     def register(self, type_or_predicate: type | Callable[[type], bool]) -> None:
-        """Register a type or predicate as Firestore-compatible."""
+        """Register a type or predicate as Firestore-compatible.
+
+        Args:
+            type_or_predicate: A type class, or a callable that takes a type and returns True
+                               if it should be accepted.
+        """
         if isinstance(type_or_predicate, type):
             self._scalar_types.add(type_or_predicate)
         else:
             self._checkers.append(type_or_predicate)
 
     def validate(self, field_name: str, hint: Any, class_name: str) -> None:
-        """Validate a type hint is Firestore-compatible. Raises TypeError if not."""
+        """Validate a type hint is Firestore-compatible.
+
+        Args:
+            field_name: Name of the field being validated.
+            hint: The type hint to validate.
+            class_name: Name of the class for error messages.
+
+        Raises:
+            TypeError: If the type is not Firestore-compatible.
+        """
         self._validate_hint(hint, field_name, class_name, context="")
 
     def _validate_hint(self, hint: Any, field_name: str, class_name: str, context: str) -> None:

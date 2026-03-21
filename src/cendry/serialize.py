@@ -73,11 +73,19 @@ def from_dict[T: Model](
 ) -> T:
     """Construct a model instance from a dict.
 
-    Args:
-        by_alias: If True, read from Firestore alias keys. If False (default), read from Python
-                  field names.
+    Nested `Map` dicts are automatically converted to their respective classes.
 
-    Raises TypeError if required fields are missing.
+    Args:
+        model_class: The Model class to construct.
+        data: Dict of field values.
+        doc_id: Optional document ID.
+        by_alias: If True, read keys by Firestore alias. If False (default), use Python names.
+
+    Returns:
+        The constructed model instance.
+
+    Raises:
+        TypeError: If required fields are missing.
     """
     missing = []
     remapped: dict[str, Any] = {}
@@ -121,9 +129,15 @@ def to_dict(
 ) -> dict[str, Any]:
     """Convert a model/map instance to a dict.
 
+    Nested `Map` instances are recursively converted to dicts.
+
     Args:
+        instance: Model or Map instance to convert.
         by_alias: If True, use Firestore alias keys. If False (default), use Python field names.
         include_id: If True, include the document ID in the output.
+
+    Returns:
+        Dict representation of the instance.
     """
     result = _map_to_dict(instance, by_alias=by_alias)
     if not include_id:

@@ -19,6 +19,7 @@ dev = [
     "coverage>=7",
     "ruff>=0.11",
     "mkdocs-material>=9",
+    "mkdocstrings[python]>=0.27",
 ]
 
 [build-system]

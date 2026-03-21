@@ -108,7 +108,12 @@ class _BaseCendry:
 
 
 class Cendry(_BaseCendry):
-    """Synchronous Firestore ODM context."""
+    """Synchronous Firestore ODM context.
+
+    Args:
+        client: Optional Firestore Client. Uses default credentials if not provided.
+        type_registry: Optional TypeRegistry override. Uses the global default if not provided.
+    """
 
     def __init__(
         self,
@@ -126,7 +131,19 @@ class Cendry(_BaseCendry):
         self._client.close()
 
     def get(self, model_class: type[T], document_id: str, *, parent: Model | None = None) -> T:
-        """Get a document by ID. Raises DocumentNotFoundError if it doesn't exist."""
+        """Fetch a single document by ID.
+
+        Args:
+            model_class: The Model class to deserialize into.
+            document_id: Firestore document ID.
+            parent: Parent document for subcollection queries.
+
+        Returns:
+            The deserialized model instance.
+
+        Raises:
+            DocumentNotFoundError: If the document does not exist.
+        """
         col_ref = self._get_collection_ref(model_class, parent)
         doc = col_ref.document(document_id).get()
         if not doc.exists:
@@ -136,7 +153,16 @@ class Cendry(_BaseCendry):
     def find(
         self, model_class: type[T], document_id: str, *, parent: Model | None = None
     ) -> T | None:
-        """Get a document by ID. Returns None if it doesn't exist."""
+        """Fetch a single document by ID, returning None if not found.
+
+        Args:
+            model_class: The Model class to deserialize into.
+            document_id: Firestore document ID.
+            parent: Parent document for subcollection queries.
+
+        Returns:
+            The deserialized model instance, or None.
+        """
         col_ref = self._get_collection_ref(model_class, parent)
         doc = col_ref.document(document_id).get()
         if not doc.exists:
@@ -150,9 +176,18 @@ class Cendry(_BaseCendry):
         *,
         parent: Model | None = None,
     ) -> list[T]:
-        """Batch fetch multiple documents by ID.
+        """Batch fetch multiple documents by ID in a single round trip.
 
-        Raises DocumentNotFoundError if any are missing.
+        Args:
+            model_class: The Model class to deserialize into.
+            document_ids: List of Firestore document IDs.
+            parent: Parent document for subcollection queries.
+
+        Returns:
+            List of deserialized model instances.
+
+        Raises:
+            DocumentNotFoundError: If any documents are missing.
         """
         col_ref = self._get_collection_ref(model_class, parent)
         doc_refs = [col_ref.document(doc_id) for doc_id in document_ids]
@@ -220,7 +255,18 @@ class Cendry(_BaseCendry):
 
 
 class AsyncCendry(_BaseCendry):
-    """Asynchronous Firestore ODM context. Works with anyio (asyncio + trio)."""
+    """Asynchronous Firestore ODM context.
+
+    Works with anyio (asyncio + trio).
+
+    Args:
+        client: Optional async Firestore Client.
+        type_registry: Optional TypeRegistry override.
+
+    Note:
+        `select()` and `select_group()` are regular `def` methods — they return
+        `AsyncQuery` synchronously. Only `get`, `find`, `get_many` are `async def`.
+    """
 
     def __init__(
         self,
@@ -268,9 +314,18 @@ class AsyncCendry(_BaseCendry):
         *,
         parent: Model | None = None,
     ) -> list[T]:
-        """Batch fetch multiple documents by ID.
+        """Batch fetch multiple documents by ID in a single round trip.
 
-        Raises DocumentNotFoundError if any are missing.
+        Args:
+            model_class: The Model class to deserialize into.
+            document_ids: List of Firestore document IDs.
+            parent: Parent document for subcollection queries.
+
+        Returns:
+            List of deserialized model instances.
+
+        Raises:
+            DocumentNotFoundError: If any documents are missing.
         """
         col_ref = self._get_collection_ref(model_class, parent)
         doc_refs = [col_ref.document(doc_id) for doc_id in document_ids]
