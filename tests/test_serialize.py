@@ -3,7 +3,14 @@ import pytest
 import cendry
 from cendry import Field, Map, Model
 from cendry import field as cendry_field
-from cendry.serialize import deserialize, from_dict, to_dict
+from cendry.serialize import (
+    deserialize,
+    from_dict,
+    resolve_field_path,
+    serialize_update_value,
+    to_dict,
+)
+
 from cendry.types import BaseTypeHandler, TypeRegistry, default_registry
 
 
@@ -126,3 +133,67 @@ def test_to_dict_default_registry_unchanged():
     city = from_dict(City, CITY_DATA)
     result = to_dict(city)
     assert result["name"] == "SF"
+
+
+# --- serialize_update_value / resolve_field_path ---
+
+
+class AliasedCity(Model, collection="aliased_cities"):
+    name: Field[str]
+    city_name: Field[str] = cendry_field(alias="cityName")
+
+
+def test_serialize_update_value_simple():
+    """Simple values pass through unchanged."""
+    custom = TypeRegistry()
+    assert serialize_update_value("hello", registry=custom) == "hello"
+    assert serialize_update_value(42, registry=custom) == 42
+    assert serialize_update_value(True, registry=custom) is True
+
+
+def test_serialize_update_value_with_handler():
+    """Custom-typed values are serialized via handler."""
+    custom = TypeRegistry()
+    custom.register(Celsius, handler=CelsiusHandler())
+    result = serialize_update_value(Celsius(20.5), registry=custom)
+    assert result == 20.5
+
+
+def test_serialize_update_value_sentinel():
+    """Firestore sentinels pass through unchanged."""
+    from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP
+
+    custom = TypeRegistry()
+    assert serialize_update_value(DELETE_FIELD, registry=custom) is DELETE_FIELD
+    assert serialize_update_value(SERVER_TIMESTAMP, registry=custom) is SERVER_TIMESTAMP
+
+
+def test_serialize_update_value_transform():
+    """Firestore transforms pass through unchanged."""
+    from google.cloud.firestore import ArrayUnion, Increment
+
+    custom = TypeRegistry()
+    inc = Increment(1)
+    assert serialize_update_value(inc, registry=custom) is inc
+    au = ArrayUnion(["tag"])
+    assert serialize_update_value(au, registry=custom) is au
+
+
+def test_resolve_field_path_simple():
+    """Simple field names pass through."""
+    assert resolve_field_path(AliasedCity, "name") == "name"
+
+
+def test_resolve_field_path_alias():
+    """Python field names are converted to Firestore aliases."""
+    assert resolve_field_path(AliasedCity, "city_name") == "cityName"
+
+
+def test_resolve_field_path_dot_notation():
+    """First segment of dot-notation path is alias-resolved."""
+    assert resolve_field_path(AliasedCity, "city_name.sub") == "cityName.sub"
+
+
+def test_resolve_field_path_unknown():
+    """Unknown field names pass through unchanged."""
+    assert resolve_field_path(AliasedCity, "unknown_field") == "unknown_field"

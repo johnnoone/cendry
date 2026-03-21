@@ -3,6 +3,8 @@ import functools
 import types
 from typing import Any, get_args, get_origin, get_type_hints
 
+from google.cloud.firestore_v1.transforms import Sentinel, _NumericValue, _ValueList
+
 from .model import METADATA_ALIAS, METADATA_ENUM_BY, Map, Model
 from .types import TypeRegistry, default_registry
 
@@ -249,6 +251,51 @@ def _map_to_dict(instance: Map, *, by_alias: bool, registry: TypeRegistry) -> di
         )
         result[key] = value
     return result
+
+
+def _is_firestore_transform(value: Any) -> bool:
+    """Check if a value is a Firestore sentinel or transform."""
+    return isinstance(value, (Sentinel, _NumericValue, _ValueList))
+
+
+def serialize_update_value(value: Any, *, registry: TypeRegistry | None = None) -> Any:
+    """Serialize a value for Firestore update, passing sentinels/transforms through.
+
+    Args:
+        value: The value to serialize.
+        registry: Optional TypeRegistry. Uses default if not provided.
+
+    Returns:
+        The serialized value, or the original if it's a sentinel/transform.
+    """
+    if _is_firestore_transform(value):
+        return value
+    registry = registry or default_registry
+    return _serialize_value(value, type(value), by_alias=True, registry=registry)
+
+
+def resolve_field_path(model_class: type[Model], path: str) -> str:
+    """Resolve a field path, converting Python names to Firestore aliases.
+
+    For dot-notation paths, only the first segment is resolved.
+    Unknown field names pass through unchanged.
+
+    Args:
+        model_class: The Model class to look up aliases on.
+        path: Field path (e.g. "name", "city_name", "mayor.name").
+
+    Returns:
+        The resolved path with aliases applied.
+    """
+    segments = path.split(".", 1)
+    first = segments[0]
+    for f in dataclasses.fields(model_class):
+        if f.name == first:
+            alias = _get_alias(f)
+            if len(segments) > 1:
+                return f"{alias}.{segments[1]}"
+            return alias
+    return path
 
 
 def to_dict(
