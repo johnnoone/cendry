@@ -16,6 +16,7 @@ def test_public_api_exports():
         "Or",
         "TypeRegistry",
         "field",
+        "from_dict",
         "register_type",
     ]
     for name in expected:

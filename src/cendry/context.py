@@ -1,7 +1,6 @@
 import dataclasses
-import types
 from collections.abc import AsyncIterator, Iterator
-from typing import Any, TypeVar, get_args, get_type_hints
+from typing import Any, Self, TypeVar
 
 from google.cloud.firestore import Client
 from google.cloud.firestore_v1.base_query import And as FsAnd
@@ -10,7 +9,8 @@ from google.cloud.firestore_v1.base_query import Or as FsOr
 
 from .exceptions import CendryError, DocumentNotFoundError
 from .filters import And, Or
-from .model import FieldFilterResult, Map, Model
+from .model import FieldFilterResult, Model
+from .serialize import deserialize
 from .types import TypeRegistry, default_registry
 
 T = TypeVar("T", bound=Model)
@@ -24,45 +24,7 @@ class _BaseCendry:
 
     def _deserialize(self, model_class: type[T], doc_id: str, data: dict[str, Any]) -> T:
         """Convert a Firestore document dict to a model instance."""
-        hints = get_type_hints(model_class, include_extras=True)
-        converted: dict[str, Any] = {}
-        for f in dataclasses.fields(model_class):
-            if f.name == "id":
-                continue
-            value = data.get(f.name)
-            if value is not None and isinstance(value, dict):
-                inner = self._resolve_map_type(hints.get(f.name))
-                if inner is not None:
-                    value = self._deserialize_map(inner, value)
-            converted[f.name] = value
-
-        return model_class(id=doc_id, **converted)
-
-    def _resolve_map_type(self, hint: Any) -> type | None:
-        """Resolve a type hint to a concrete Map subclass if applicable."""
-        if hint is None or isinstance(hint, str):
-            return None
-        # Unwrap X | None (UnionType)
-        if isinstance(hint, types.UnionType):
-            non_none = [a for a in get_args(hint) if a is not type(None)]
-            if len(non_none) == 1:
-                hint = non_none[0]
-        if isinstance(hint, type) and issubclass(hint, Map):
-            return hint
-        return None
-
-    def _deserialize_map(self, map_class: type, data: dict[str, Any]) -> Any:
-        """Recursively deserialize a Map from a dict."""
-        hints = get_type_hints(map_class, include_extras=True)
-        converted: dict[str, Any] = {}
-        for f in dataclasses.fields(map_class):
-            value = data.get(f.name)
-            if value is not None and isinstance(value, dict):
-                inner = self._resolve_map_type(hints.get(f.name))
-                if inner is not None:
-                    value = self._deserialize_map(inner, value)
-            converted[f.name] = value
-        return map_class(**converted)
+        return deserialize(model_class, doc_id, data)
 
     def _get_collection_ref(self, model_class: type[T], parent: Model | None = None) -> Any:
         """Get a Firestore collection reference, optionally nested under a parent."""
@@ -161,10 +123,10 @@ class Cendry(_BaseCendry):
         self._client = client or Client()
         self.type_registry = type_registry or default_registry
 
-    def __enter__(self) -> "Cendry":
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, *args: Any) -> None:
+    def __exit__(self, *args: object) -> None:
         self._client.close()
 
     def get(self, model_class: type[T], document_id: str, *, parent: Model | None = None) -> T:
@@ -255,10 +217,10 @@ class AsyncCendry(_BaseCendry):
         self._client = client
         self.type_registry = type_registry or default_registry
 
-    async def __aenter__(self) -> "AsyncCendry":
+    async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, *args: Any) -> None:
+    async def __aexit__(self, *args: object) -> None:
         await self._client.close()
 
     async def get(

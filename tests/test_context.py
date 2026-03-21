@@ -497,16 +497,15 @@ def test_field_with_default_factory():
     assert item.tags == []
 
 
-# --- _resolve_map_type edge cases ---
+# --- resolve_map_type edge cases ---
 
 
 def test_resolve_map_type_non_map():
-    from cendry.context import _BaseCendry
+    from cendry.serialize import resolve_map_type
 
-    base = _BaseCendry()
-    assert base._resolve_map_type(str) is None
-    assert base._resolve_map_type("some_string") is None
-    assert base._resolve_map_type(None) is None
+    assert resolve_map_type(str) is None
+    assert resolve_map_type("some_string") is None
+    assert resolve_map_type(None) is None
 
 
 # --- type_registry ---

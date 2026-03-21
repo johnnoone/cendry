@@ -70,10 +70,10 @@ class FieldDescriptor:
     # Dunder shortcuts
     __hash__ = None  # type: ignore[assignment]
 
-    def __eq__(self, other: Any) -> FieldFilterResult:  # type: ignore[override]
+    def __eq__(self, other: object) -> FieldFilterResult:  # type: ignore[override]
         return self._make_filter("==", other)
 
-    def __ne__(self, other: Any) -> FieldFilterResult:  # type: ignore[override]
+    def __ne__(self, other: object) -> FieldFilterResult:  # type: ignore[override]
         return self._make_filter("!=", other)
 
     def __gt__(self, other: Any) -> FieldFilterResult:
