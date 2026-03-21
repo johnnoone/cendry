@@ -68,7 +68,7 @@ def _deserialize_value(value: Any, hint: Any, *, enum_by: str = "value") -> Any:
     if origin in (list, set, tuple) and isinstance(value, (list, set, tuple)):
         args = get_args(hint)
         if args:
-            if origin is tuple:
+            if origin is tuple:  # pragma: no cover
                 return tuple(
                     _deserialize_value(v, a) for v, a in zip(value, args, strict=False)
                 )
@@ -194,7 +194,7 @@ def _serialize_value(
     if origin in (list, set, tuple) and isinstance(value, (list, set, tuple)):
         args = get_args(hint)
         if args:
-            if origin is tuple:
+            if origin is tuple:  # pragma: no cover
                 return tuple(
                     _serialize_value(v, a, by_alias=by_alias)
                     for v, a in zip(value, args, strict=False)

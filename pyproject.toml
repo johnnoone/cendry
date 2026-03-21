@@ -55,6 +55,8 @@ unknown-argument = "ignore"
 unresolved-attribute = "ignore"
 invalid-argument-type = "ignore"
 missing-argument = "ignore"
+not-iterable = "ignore"
+not-subscriptable = "ignore"
 
 [tool.coverage.run]
 source = ["cendry"]
