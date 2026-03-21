@@ -18,6 +18,7 @@ from cendry import (
     Or,
 )
 from cendry.serialize import to_dict
+from cendry.types import BaseTypeHandler, TypeRegistry
 from tests.conftest import SF_DATA, City, Mayor, Neighborhood, make_mock_document
 
 # --- get / find ---
@@ -1000,3 +1001,119 @@ async def test_async_delete_with_parent(mock_firestore_client: MagicMock):
     await ctx.delete(Neighborhood, "MISSION", parent=parent)
 
     sub_doc_ref.delete.assert_called_once()
+
+
+# --- Registry threading ---
+
+
+class Celsius:
+    def __init__(self, value: float) -> None:
+        self.value = value
+
+
+class CelsiusHandler(BaseTypeHandler):
+    def serialize(self, value: Celsius) -> float:
+        return value.value
+
+    def deserialize(self, value: float) -> Celsius:
+        return Celsius(value)
+
+
+# Register on default so model definition passes validation
+from cendry.types import default_registry
+
+default_registry.register(Celsius, handler=CelsiusHandler())
+
+
+class Weather(Model, collection="weather_ctx"):
+    city: Field[str]
+    temp: Field[Celsius]
+
+
+def test_get_uses_context_registry(mock_firestore_client: MagicMock):
+    custom = TypeRegistry()
+    custom.register(Celsius, handler=CelsiusHandler())
+    doc = make_mock_document("w1", {"city": "SF", "temp": 20.5})
+    mock_firestore_client.collection.return_value.document.return_value.get.return_value = doc
+
+    ctx = Cendry(client=mock_firestore_client, type_registry=custom)
+    weather = ctx.get(Weather, "w1")
+
+    assert isinstance(weather.temp, Celsius)
+    assert weather.temp.value == 20.5
+
+
+def test_save_uses_context_registry(mock_firestore_client: MagicMock):
+    custom = TypeRegistry()
+    custom.register(Celsius, handler=CelsiusHandler())
+    weather = Weather(city="SF", temp=Celsius(20.5), id="w1")
+
+    ctx = Cendry(client=mock_firestore_client, type_registry=custom)
+    ctx.save(weather)
+
+    call_args = mock_firestore_client.collection.return_value.document.return_value.set.call_args
+    data = call_args[0][0]
+    assert data["temp"] == 20.5
+
+
+def test_select_iteration_uses_context_registry(mock_firestore_client: MagicMock):
+    custom = TypeRegistry()
+    custom.register(Celsius, handler=CelsiusHandler())
+    docs = [make_mock_document("w1", {"city": "SF", "temp": 20.5})]
+    mock_firestore_client.collection.return_value.stream.return_value = iter(docs)
+
+    ctx = Cendry(client=mock_firestore_client, type_registry=custom)
+    results = list(ctx.select(Weather))
+
+    assert len(results) == 1
+    assert isinstance(results[0].temp, Celsius)
+
+
+@pytest.mark.anyio
+async def test_async_get_uses_context_registry(mock_firestore_client: MagicMock):
+    custom = TypeRegistry()
+    custom.register(Celsius, handler=CelsiusHandler())
+    doc = make_mock_document("w1", {"city": "SF", "temp": 20.5})
+    mock_firestore_client.collection.return_value.document.return_value.get = AsyncMock(
+        return_value=doc,
+    )
+
+    ctx = AsyncCendry(client=mock_firestore_client, type_registry=custom)
+    weather = await ctx.get(Weather, "w1")
+
+    assert isinstance(weather.temp, Celsius)
+    assert weather.temp.value == 20.5
+
+
+@pytest.mark.anyio
+async def test_async_save_uses_context_registry(mock_firestore_client: MagicMock):
+    custom = TypeRegistry()
+    custom.register(Celsius, handler=CelsiusHandler())
+    weather = Weather(city="SF", temp=Celsius(20.5), id="w1")
+    mock_firestore_client.collection.return_value.document.return_value.set = AsyncMock()
+
+    ctx = AsyncCendry(client=mock_firestore_client, type_registry=custom)
+    await ctx.save(weather)
+
+    call_args = mock_firestore_client.collection.return_value.document.return_value.set.call_args
+    data = call_args[0][0]
+    assert data["temp"] == 20.5
+
+
+@pytest.mark.anyio
+async def test_async_select_iteration_uses_context_registry(mock_firestore_client: MagicMock):
+    custom = TypeRegistry()
+    custom.register(Celsius, handler=CelsiusHandler())
+    docs = [make_mock_document("w1", {"city": "SF", "temp": 20.5})]
+
+    async def mock_stream():
+        for d in docs:
+            yield d
+
+    mock_firestore_client.collection.return_value.stream = mock_stream
+
+    ctx = AsyncCendry(client=mock_firestore_client, type_registry=custom)
+    results = [item async for item in ctx.select(Weather)]
+
+    assert len(results) == 1
+    assert isinstance(results[0].temp, Celsius)

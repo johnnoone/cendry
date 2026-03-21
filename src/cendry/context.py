@@ -165,7 +165,7 @@ class Cendry(_BaseCendry):
         doc = col_ref.document(document_id).get()
         if not doc.exists:
             raise DocumentNotFoundError(model_class.__collection__, document_id)
-        return deserialize(model_class, doc.id, doc.to_dict())
+        return deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
 
     def find(
         self, model_class: type[T], document_id: str, *, parent: Model | None = None
@@ -184,7 +184,7 @@ class Cendry(_BaseCendry):
         doc = col_ref.document(document_id).get()
         if not doc.exists:
             return None
-        return deserialize(model_class, doc.id, doc.to_dict())
+        return deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
 
     def get_many(
         self,
@@ -214,7 +214,7 @@ class Cendry(_BaseCendry):
             if not doc.exists:
                 missing.append(doc.id)
             else:
-                results.append(deserialize(model_class, doc.id, doc.to_dict()))
+                results.append(deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry))
         if missing:
             raise DocumentNotFoundError(model_class.__collection__, ", ".join(missing))
         return results
@@ -243,7 +243,7 @@ class Cendry(_BaseCendry):
             end_before=end_before,
             parent=parent,
         )
-        return Query(q, model_class, self._apply_filter)
+        return Query(q, model_class, self._apply_filter, registry=self.type_registry)
 
     def select_group(
         self,
@@ -268,7 +268,7 @@ class Cendry(_BaseCendry):
             end_before=end_before,
             collection_group=True,
         )
-        return Query(q, model_class, self._apply_filter)
+        return Query(q, model_class, self._apply_filter, registry=self.type_registry)
 
     def save(self, instance: T, *, parent: Model | None = None) -> str:
         """Save (upsert) a document. Returns the document ID.
@@ -283,7 +283,7 @@ class Cendry(_BaseCendry):
         self._validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
         doc_ref = col_ref.document() if instance.id is None else col_ref.document(instance.id)
-        doc_ref.set(to_dict(instance, by_alias=True))
+        doc_ref.set(to_dict(instance, by_alias=True, registry=self.type_registry))
         if instance.id is None:
             instance.id = doc_ref.id
         result: str = doc_ref.id
@@ -306,7 +306,7 @@ class Cendry(_BaseCendry):
         col_ref = self._get_collection_ref(type(instance), parent)
         doc_ref = col_ref.document() if instance.id is None else col_ref.document(instance.id)
         try:
-            doc_ref.create(to_dict(instance, by_alias=True))
+            doc_ref.create(to_dict(instance, by_alias=True, registry=self.type_registry))
         except Conflict as e:
             raise DocumentAlreadyExistsError(type(instance).__collection__, doc_ref.id) from e
         if instance.id is None:
@@ -398,7 +398,7 @@ class AsyncCendry(_BaseCendry):
         doc = await col_ref.document(document_id).get()
         if not doc.exists:
             raise DocumentNotFoundError(model_class.__collection__, document_id)
-        return deserialize(model_class, doc.id, doc.to_dict())
+        return deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
 
     async def find(
         self, model_class: type[T], document_id: str, *, parent: Model | None = None
@@ -408,7 +408,7 @@ class AsyncCendry(_BaseCendry):
         doc = await col_ref.document(document_id).get()
         if not doc.exists:
             return None
-        return deserialize(model_class, doc.id, doc.to_dict())
+        return deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
 
     async def get_many(
         self,
@@ -438,7 +438,7 @@ class AsyncCendry(_BaseCendry):
             if not doc.exists:
                 missing.append(doc.id)
             else:
-                results.append(deserialize(model_class, doc.id, doc.to_dict()))
+                results.append(deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry))
         if missing:
             raise DocumentNotFoundError(model_class.__collection__, ", ".join(missing))
         return results
@@ -467,7 +467,7 @@ class AsyncCendry(_BaseCendry):
             end_before=end_before,
             parent=parent,
         )
-        return AsyncQuery(q, model_class, self._apply_filter)
+        return AsyncQuery(q, model_class, self._apply_filter, registry=self.type_registry)
 
     def select_group(
         self,
@@ -492,14 +492,14 @@ class AsyncCendry(_BaseCendry):
             end_before=end_before,
             collection_group=True,
         )
-        return AsyncQuery(q, model_class, self._apply_filter)
+        return AsyncQuery(q, model_class, self._apply_filter, registry=self.type_registry)
 
     async def save(self, instance: T, *, parent: Model | None = None) -> str:
         """Save (upsert) a document. Returns the document ID."""
         self._validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
         doc_ref = col_ref.document() if instance.id is None else col_ref.document(instance.id)
-        await doc_ref.set(to_dict(instance, by_alias=True))
+        await doc_ref.set(to_dict(instance, by_alias=True, registry=self.type_registry))
         if instance.id is None:
             instance.id = doc_ref.id
         result: str = doc_ref.id
@@ -511,7 +511,7 @@ class AsyncCendry(_BaseCendry):
         col_ref = self._get_collection_ref(type(instance), parent)
         doc_ref = col_ref.document() if instance.id is None else col_ref.document(instance.id)
         try:
-            await doc_ref.create(to_dict(instance, by_alias=True))
+            await doc_ref.create(to_dict(instance, by_alias=True, registry=self.type_registry))
         except Conflict as e:
             raise DocumentAlreadyExistsError(type(instance).__collection__, doc_ref.id) from e
         if instance.id is None:
