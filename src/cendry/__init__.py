@@ -5,6 +5,7 @@ from .exceptions import CendryError, DocumentNotFoundError
 from .filters import And, FieldFilter, Or
 from .model import Field, Map, Model, field
 from .query import Asc, Desc
+from .types import TypeRegistry, register_type
 
 __all__ = [
     "And",
@@ -19,5 +20,7 @@ __all__ = [
     "Map",
     "Model",
     "Or",
+    "TypeRegistry",
     "field",
+    "register_type",
 ]

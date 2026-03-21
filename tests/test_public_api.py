@@ -14,7 +14,9 @@ def test_public_api_exports():
         "Map",
         "Model",
         "Or",
+        "TypeRegistry",
         "field",
+        "register_type",
     ]
     for name in expected:
         assert hasattr(cendry, name), f"Missing export: {name}"
