@@ -221,7 +221,7 @@ def update_instance(ctx_and_instance, value: str):
 def refresh_instance(ctx_and_instance):
     ctx, instance, _ = ctx_and_instance
     ctx.refresh(instance)
-    return None
+    return
 
 
 @then("the document is updated in Firestore")

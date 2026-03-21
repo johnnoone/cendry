@@ -397,11 +397,12 @@ class Cendry(_BaseCendry):
                 raise CendryError("Cannot update a model instance with id=None")
             model_class = type(instance_or_class)
             doc_id = instance_or_class.id
-            field_updates = field_updates_or_doc_id
+            field_updates: dict[str, Any] = field_updates_or_doc_id  # type: ignore[assignment]
         else:
             model_class = instance_or_class
+            assert isinstance(field_updates_or_doc_id, str)
             doc_id = field_updates_or_doc_id
-            field_updates = field_updates_or_none
+            field_updates = field_updates_or_none  # type: ignore[assignment]
             assert field_updates is not None
 
         resolved = {
@@ -664,11 +665,12 @@ class AsyncCendry(_BaseCendry):
                 raise CendryError("Cannot update a model instance with id=None")
             model_class = type(instance_or_class)
             doc_id = instance_or_class.id
-            field_updates = field_updates_or_doc_id
+            field_updates: dict[str, Any] = field_updates_or_doc_id  # type: ignore[assignment]
         else:
             model_class = instance_or_class
+            assert isinstance(field_updates_or_doc_id, str)
             doc_id = field_updates_or_doc_id
-            field_updates = field_updates_or_none
+            field_updates = field_updates_or_none  # type: ignore[assignment]
             assert field_updates is not None
 
         resolved = {

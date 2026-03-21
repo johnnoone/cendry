@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from google.api_core.exceptions import NotFound
 
 import cendry
 from cendry import (
@@ -17,8 +18,6 @@ from cendry import (
     Model,
     Or,
 )
-from google.api_core.exceptions import NotFound
-
 from cendry.serialize import to_dict
 from cendry.types import BaseTypeHandler, TypeRegistry, default_registry
 from tests.conftest import SF_DATA, City, Mayor, Neighborhood, make_mock_document

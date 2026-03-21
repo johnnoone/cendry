@@ -10,7 +10,6 @@ from cendry.serialize import (
     serialize_update_value,
     to_dict,
 )
-
 from cendry.types import BaseTypeHandler, TypeRegistry, default_registry
 
 
