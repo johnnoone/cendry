@@ -1,6 +1,6 @@
 import dataclasses
 import types
-from typing import Any, get_args, get_origin
+from typing import Any, get_args, get_origin, overload
 
 from .filters import Filter
 
@@ -15,7 +15,7 @@ class FieldFilterResult(Filter):
 
 
 class FieldDescriptor:
-    """Class-level descriptor for model fields.
+    """Runtime descriptor installed on model classes by the metaclass.
 
     On class access: returns self (with filter methods).
     On instance access: returns the stored value.
@@ -67,11 +67,24 @@ class FieldDescriptor:
 
 
 class Field[T]:
-    """Type annotation marker for model fields.
+    """Typed field descriptor for Model and Map classes.
 
-    Used as Field[str], Field[int], etc. in model class annotations.
-    At runtime, the metaclass replaces these with FieldDescriptor instances.
+    Used as ``Field[str]``, ``Field[int]``, etc. in class annotations.
+    At runtime, the metaclass replaces Field annotations with FieldDescriptor instances.
+
+    The overloaded ``__get__`` tells type checkers:
+    - Class access (``City.state``) returns ``FieldDescriptor`` (with ``.eq()``, ``.gt()``, etc.)
+    - Instance access (``city.state``) returns ``T`` (the actual value)
     """
+
+    @overload
+    def __get__(self, obj: None, objtype: type) -> FieldDescriptor: ...
+    @overload
+    def __get__(self, obj: Any, objtype: type | None = None) -> T: ...
+
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:  # pragma: no cover
+        # Never called at runtime — the metaclass replaces Field with FieldDescriptor
+        raise NotImplementedError
 
 
 def field(
@@ -147,15 +160,15 @@ class _MapMeta(type):
         )
         if is_model_subclass and "id" not in rewritten:
             rewritten["id"] = str | None
-            cls.id = dataclasses.field(default=None, kw_only=True)  # type: ignore[attr-defined]
+            cls.id = dataclasses.field(default=None, kw_only=True)  # type: ignore[attr-defined]  # mypy: dynamic attr on metaclass
 
         cls.__annotations__ = rewritten
 
         _validate_no_nested_models(cls, raw_annotations)
 
-        cls = dataclasses.dataclass(cls)  # type: ignore[arg-type,assignment]
+        cls = dataclasses.dataclass(cls)  # type: ignore[arg-type,assignment]  # mypy: metaclass type mismatch
 
-        for f in dataclasses.fields(cls):  # type: ignore[arg-type]
+        for f in dataclasses.fields(cls):  # type: ignore[arg-type]  # mypy: metaclass type mismatch
             if f.name != "id":
                 setattr(cls, f.name, FieldDescriptor(f.name))
 

@@ -42,6 +42,17 @@ disallow_untyped_decorators = false
 disallow_incomplete_defs = false
 disable_error_code = ["arg-type", "call-arg", "attr-defined", "comparison-overlap", "valid-type"]
 
+[tool.ty.rules]
+unused-type-ignore-comment = "ignore"  # mypy and ty disagree on what needs suppressing
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+# metaclass-generated dataclasses are invisible to ty
+[tool.ty.overrides.rules]
+unknown-argument = "ignore"
+unresolved-attribute = "ignore"
+invalid-argument-type = "ignore"
+
 [tool.coverage.run]
 source = ["cendry"]
 
