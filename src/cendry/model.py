@@ -67,6 +67,27 @@ class FieldDescriptor:
     def not_in(self, value: Any) -> FieldFilterResult:
         return self._make_filter("not-in", value)
 
+    # Dunder shortcuts
+    __hash__ = None  # type: ignore[assignment]
+
+    def __eq__(self, other: Any) -> FieldFilterResult:  # type: ignore[override]
+        return self._make_filter("==", other)
+
+    def __ne__(self, other: Any) -> FieldFilterResult:  # type: ignore[override]
+        return self._make_filter("!=", other)
+
+    def __gt__(self, other: Any) -> FieldFilterResult:
+        return self._make_filter(">", other)
+
+    def __ge__(self, other: Any) -> FieldFilterResult:
+        return self._make_filter(">=", other)
+
+    def __lt__(self, other: Any) -> FieldFilterResult:
+        return self._make_filter("<", other)
+
+    def __le__(self, other: Any) -> FieldFilterResult:
+        return self._make_filter("<=", other)
+
 
 class Field[T]:
     """Typed field descriptor for Model and Map classes.

@@ -229,3 +229,68 @@ def test_field_descriptor_composition_or():
         country: Field[str]
 
     assert isinstance(City.state.eq("CA") | City.country.eq("Japan"), Filter)
+
+
+# --- Dunder filter shortcuts ---
+
+
+def test_field_descriptor_dunder_eq():
+    class City(Model, collection="cities"):
+        state: Field[str]
+
+    result = City.state == "CA"
+    assert isinstance(result, Filter)
+    assert result.op == "=="
+
+
+def test_field_descriptor_dunder_ne():
+    class City(Model, collection="cities"):
+        state: Field[str]
+
+    result = City.state != "CA"
+    assert isinstance(result, Filter)
+    assert result.op == "!="
+
+
+def test_field_descriptor_dunder_gt():
+    class City(Model, collection="cities"):
+        population: Field[int]
+
+    result = City.population > 100
+    assert isinstance(result, Filter)
+    assert result.op == ">"
+
+
+def test_field_descriptor_dunder_ge():
+    class City(Model, collection="cities"):
+        population: Field[int]
+
+    result = City.population >= 100
+    assert isinstance(result, Filter)
+    assert result.op == ">="
+
+
+def test_field_descriptor_dunder_lt():
+    class City(Model, collection="cities"):
+        population: Field[int]
+
+    result = City.population < 100
+    assert isinstance(result, Filter)
+    assert result.op == "<"
+
+
+def test_field_descriptor_dunder_le():
+    class City(Model, collection="cities"):
+        population: Field[int]
+
+    result = City.population <= 100
+    assert isinstance(result, Filter)
+    assert result.op == "<="
+
+
+def test_field_descriptor_not_hashable():
+    class City(Model, collection="cities"):
+        state: Field[str]
+
+    with pytest.raises(TypeError):
+        hash(City.state)
