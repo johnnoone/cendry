@@ -4,7 +4,7 @@ import cendry
 from cendry import Field, Map, Model
 from cendry import field as cendry_field
 from cendry.serialize import deserialize, from_dict, to_dict
-from cendry.types import BaseTypeHandler, TypeRegistry
+from cendry.types import BaseTypeHandler, TypeRegistry, default_registry
 
 
 class Mayor(Map):
@@ -85,9 +85,6 @@ class CelsiusHandler(BaseTypeHandler):
     def deserialize(self, value: float) -> Celsius:
         return Celsius(value)
 
-
-# Register on default_registry so model definition passes validation
-from cendry.types import default_registry
 
 default_registry.register(Celsius, handler=CelsiusHandler())
 

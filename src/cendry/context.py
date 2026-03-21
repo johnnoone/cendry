@@ -214,7 +214,9 @@ class Cendry(_BaseCendry):
             if not doc.exists:
                 missing.append(doc.id)
             else:
-                results.append(deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry))
+                results.append(
+                    deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+                )
         if missing:
             raise DocumentNotFoundError(model_class.__collection__, ", ".join(missing))
         return results
@@ -438,7 +440,9 @@ class AsyncCendry(_BaseCendry):
             if not doc.exists:
                 missing.append(doc.id)
             else:
-                results.append(deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry))
+                results.append(
+                    deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+                )
         if missing:
             raise DocumentNotFoundError(model_class.__collection__, ", ".join(missing))
         return results

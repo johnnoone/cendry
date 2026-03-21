@@ -82,8 +82,7 @@ def _deserialize_value(
         if args and len(args) > 1:
             val_hint = args[1]
             return {
-                k: _deserialize_value(v, val_hint, registry=registry)
-                for k, v in value.items()
+                k: _deserialize_value(v, val_hint, registry=registry) for k, v in value.items()
             }
 
     # Map nesting
@@ -217,8 +216,7 @@ def _serialize_value(
                 ]
             elem_hint = args[0]
             return [
-                _serialize_value(v, elem_hint, by_alias=by_alias, registry=registry)
-                for v in value
+                _serialize_value(v, elem_hint, by_alias=by_alias, registry=registry) for v in value
             ]
     if origin is dict and isinstance(value, dict):
         args = get_args(hint)
@@ -235,9 +233,7 @@ def _serialize_value(
     return value
 
 
-def _map_to_dict(
-    instance: Map, *, by_alias: bool, registry: TypeRegistry
-) -> dict[str, Any]:
+def _map_to_dict(instance: Map, *, by_alias: bool, registry: TypeRegistry) -> dict[str, Any]:
     """Convert a Map instance to a dict recursively."""
     hints = _cached_type_hints(type(instance))
     result: dict[str, Any] = {}

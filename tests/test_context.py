@@ -18,7 +18,7 @@ from cendry import (
     Or,
 )
 from cendry.serialize import to_dict
-from cendry.types import BaseTypeHandler, TypeRegistry
+from cendry.types import BaseTypeHandler, TypeRegistry, default_registry
 from tests.conftest import SF_DATA, City, Mayor, Neighborhood, make_mock_document
 
 # --- get / find ---
@@ -1018,9 +1018,6 @@ class CelsiusHandler(BaseTypeHandler):
     def deserialize(self, value: float) -> Celsius:
         return Celsius(value)
 
-
-# Register on default so model definition passes validation
-from cendry.types import default_registry
 
 default_registry.register(Celsius, handler=CelsiusHandler())
 
