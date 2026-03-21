@@ -41,3 +41,19 @@ Feature: Write operations
         Given a Firestore collection without document "NOPE"
         When I delete City with id "NOPE" and must_exist is true
         Then a DocumentNotFoundError is raised
+
+    Scenario: Update a document by instance
+        Given a City instance with id "SF"
+        When I update the instance with {"name": "San Fran"}
+        Then the document is updated in Firestore
+
+    Scenario: Update a document with id None raises error
+        Given a City instance without an id
+        When I update the instance with {"name": "San Fran"}
+        Then a CendryError is raised with message "Cannot update a model instance with id=None"
+
+    Scenario: Refresh a document by instance
+        Given a City instance with id "SF"
+        And the document exists in Firestore with updated data
+        When I refresh the instance
+        Then the instance fields are updated

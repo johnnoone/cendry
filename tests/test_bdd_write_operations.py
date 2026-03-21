@@ -52,6 +52,21 @@ def test_delete_must_exist():
     pass
 
 
+@scenario(f"{FEATURES}/write_operations.feature", "Update a document by instance")
+def test_bdd_update_by_instance():
+    pass
+
+
+@scenario(f"{FEATURES}/write_operations.feature", "Update a document with id None raises error")
+def test_bdd_update_no_id():
+    pass
+
+
+@scenario(f"{FEATURES}/write_operations.feature", "Refresh a document by instance")
+def test_bdd_refresh():
+    pass
+
+
 @given(
     parsers.parse('a City instance with id "{doc_id}"'),
     target_fixture="ctx_and_instance",
@@ -179,3 +194,44 @@ def check_cendry_error(result, message: str):
 @then("a DocumentNotFoundError is raised")
 def check_not_found(result):
     assert isinstance(result, DocumentNotFoundError)
+
+
+@given("the document exists in Firestore with updated data")
+def document_with_updated_data(ctx_and_instance):
+    _, instance, client = ctx_and_instance
+    updated_data = {**SF_DATA, "name": "San Fran", "population": 900_000}
+    doc = make_mock_document(instance.id, updated_data)
+    client.collection.return_value.document.return_value.get.return_value = doc
+
+
+@when(
+    parsers.parse('I update the instance with {{"name": "{value}"}}'),
+    target_fixture="result",
+)
+def update_instance(ctx_and_instance, value: str):
+    ctx, instance, _ = ctx_and_instance
+    try:
+        ctx.update(instance, {"name": value})
+        return None
+    except CendryError as e:
+        return e
+
+
+@when("I refresh the instance", target_fixture="result")
+def refresh_instance(ctx_and_instance):
+    ctx, instance, _ = ctx_and_instance
+    ctx.refresh(instance)
+    return None
+
+
+@then("the document is updated in Firestore")
+def check_update_called(ctx_and_instance):
+    _, _, client = ctx_and_instance
+    client.collection.return_value.document.return_value.update.assert_called_once()
+
+
+@then("the instance fields are updated")
+def check_refresh_fields(ctx_and_instance):
+    _, instance, _ = ctx_and_instance
+    assert instance.name == "San Fran"
+    assert instance.population == 900_000
