@@ -1,12 +1,11 @@
 import dataclasses
 from typing import Any, Self, TypeVar, overload
 
+from google.cloud.exceptions import Conflict
 from google.cloud.firestore import Client
 from google.cloud.firestore_v1.base_query import And as FsAnd
 from google.cloud.firestore_v1.base_query import FieldFilter as FsFieldFilter
 from google.cloud.firestore_v1.base_query import Or as FsOr
-
-from google.cloud.exceptions import Conflict
 
 from .exceptions import CendryError, DocumentAlreadyExistsError, DocumentNotFoundError
 from .filters import And, Or
@@ -283,14 +282,12 @@ class Cendry(_BaseCendry):
         """
         self._validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
-        if instance.id is None:
-            doc_ref = col_ref.document()
-        else:
-            doc_ref = col_ref.document(instance.id)
+        doc_ref = col_ref.document() if instance.id is None else col_ref.document(instance.id)
         doc_ref.set(to_dict(instance, by_alias=True))
         if instance.id is None:
             instance.id = doc_ref.id
-        return doc_ref.id
+        result: str = doc_ref.id
+        return result
 
     def create(self, instance: T, *, parent: Model | None = None) -> str:
         """Create a document. Raises if it already exists. Returns the document ID.
@@ -307,19 +304,15 @@ class Cendry(_BaseCendry):
         """
         self._validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
-        if instance.id is None:
-            doc_ref = col_ref.document()
-        else:
-            doc_ref = col_ref.document(instance.id)
+        doc_ref = col_ref.document() if instance.id is None else col_ref.document(instance.id)
         try:
             doc_ref.create(to_dict(instance, by_alias=True))
         except Conflict as e:
-            raise DocumentAlreadyExistsError(
-                type(instance).__collection__, doc_ref.id
-            ) from e
+            raise DocumentAlreadyExistsError(type(instance).__collection__, doc_ref.id) from e
         if instance.id is None:
             instance.id = doc_ref.id
-        return doc_ref.id
+        result: str = doc_ref.id
+        return result
 
     @overload
     def delete(self, instance: Model, *, parent: Model | None = None) -> None: ...
@@ -333,7 +326,7 @@ class Cendry(_BaseCendry):
         must_exist: bool = False,
     ) -> None: ...
 
-    def delete(
+    def delete(  # type: ignore[misc]
         self,
         instance_or_class: Model | type[T],
         doc_id: str | None = None,
@@ -355,6 +348,7 @@ class Cendry(_BaseCendry):
             col_ref = self._get_collection_ref(type(instance_or_class), parent)
             col_ref.document(instance_or_class.id).delete()
         else:
+            assert doc_id is not None
             col_ref = self._get_collection_ref(instance_or_class, parent)
             if must_exist:
                 doc = col_ref.document(doc_id).get()
@@ -504,32 +498,26 @@ class AsyncCendry(_BaseCendry):
         """Save (upsert) a document. Returns the document ID."""
         self._validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
-        if instance.id is None:
-            doc_ref = col_ref.document()
-        else:
-            doc_ref = col_ref.document(instance.id)
+        doc_ref = col_ref.document() if instance.id is None else col_ref.document(instance.id)
         await doc_ref.set(to_dict(instance, by_alias=True))
         if instance.id is None:
             instance.id = doc_ref.id
-        return doc_ref.id
+        result: str = doc_ref.id
+        return result
 
     async def create(self, instance: T, *, parent: Model | None = None) -> str:
         """Create a document. Raises if it already exists. Returns the document ID."""
         self._validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
-        if instance.id is None:
-            doc_ref = col_ref.document()
-        else:
-            doc_ref = col_ref.document(instance.id)
+        doc_ref = col_ref.document() if instance.id is None else col_ref.document(instance.id)
         try:
             await doc_ref.create(to_dict(instance, by_alias=True))
         except Conflict as e:
-            raise DocumentAlreadyExistsError(
-                type(instance).__collection__, doc_ref.id
-            ) from e
+            raise DocumentAlreadyExistsError(type(instance).__collection__, doc_ref.id) from e
         if instance.id is None:
             instance.id = doc_ref.id
-        return doc_ref.id
+        result: str = doc_ref.id
+        return result
 
     @overload
     async def delete(self, instance: Model, *, parent: Model | None = None) -> None: ...
@@ -543,7 +531,7 @@ class AsyncCendry(_BaseCendry):
         must_exist: bool = False,
     ) -> None: ...
 
-    async def delete(
+    async def delete(  # type: ignore[misc]
         self,
         instance_or_class: Model | type[T],
         doc_id: str | None = None,
@@ -558,6 +546,7 @@ class AsyncCendry(_BaseCendry):
             col_ref = self._get_collection_ref(type(instance_or_class), parent)
             await col_ref.document(instance_or_class.id).delete()
         else:
+            assert doc_id is not None
             col_ref = self._get_collection_ref(instance_or_class, parent)
             if must_exist:
                 doc = await col_ref.document(doc_id).get()

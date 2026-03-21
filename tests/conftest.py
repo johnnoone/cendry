@@ -7,7 +7,6 @@ import pytest
 
 from cendry import Field, Map, Model, field
 
-
 SF_DATA = {
     "name": "San Francisco",
     "state": "CA",

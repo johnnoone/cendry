@@ -20,7 +20,6 @@ from cendry import (
 from cendry.serialize import to_dict
 from tests.conftest import SF_DATA, City, Mayor, Neighborhood, make_mock_document
 
-
 # --- get / find ---
 
 
@@ -550,7 +549,7 @@ async def test_async_cendry_context_manager(mock_firestore_client: MagicMock):
 
 def test_validate_required_fields_raises_on_none(mock_firestore_client: MagicMock):
     city = City(
-        name=None,  # type: ignore[arg-type]
+        name=None,
         state="CA",
         country="USA",
         capital=False,
@@ -637,7 +636,7 @@ def test_save_with_parent(mock_firestore_client: MagicMock):
 
 def test_save_validates_required_fields(mock_firestore_client: MagicMock):
     city = City(
-        name=None,  # type: ignore[arg-type]
+        name=None,
         state="CA",
         country="USA",
         capital=False,
@@ -711,7 +710,7 @@ def test_create_with_parent(mock_firestore_client: MagicMock):
 
 def test_create_validates_required_fields(mock_firestore_client: MagicMock):
     city = City(
-        name=None,  # type: ignore[arg-type]
+        name=None,
         state="CA",
         country="USA",
         capital=False,
@@ -840,7 +839,7 @@ async def test_async_save_with_parent(mock_firestore_client: MagicMock):
 @pytest.mark.anyio
 async def test_async_save_validates_required_fields(mock_firestore_client: MagicMock):
     city = City(
-        name=None,  # type: ignore[arg-type]
+        name=None,
         state="CA",
         country="USA",
         capital=False,
@@ -917,7 +916,7 @@ async def test_async_create_raises_on_conflict(mock_firestore_client: MagicMock)
 @pytest.mark.anyio
 async def test_async_create_validates_required_fields(mock_firestore_client: MagicMock):
     city = City(
-        name=None,  # type: ignore[arg-type]
+        name=None,
         state="CA",
         country="USA",
         capital=False,
