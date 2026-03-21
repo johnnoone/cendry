@@ -22,10 +22,6 @@ class _BaseCendry:
     _client: Any
     type_registry: TypeRegistry
 
-    def _deserialize(self, model_class: type[T], doc_id: str, data: dict[str, Any]) -> T:
-        """Convert a Firestore document dict to a model instance."""
-        return deserialize(model_class, doc_id, data)
-
     def _get_collection_ref(self, model_class: type[T], parent: Model | None = None) -> Any:
         """Get a Firestore collection reference, optionally nested under a parent."""
         if parent is not None:
@@ -135,7 +131,7 @@ class Cendry(_BaseCendry):
         doc = col_ref.document(document_id).get()
         if not doc.exists:
             raise DocumentNotFoundError(model_class.__collection__, document_id)
-        return self._deserialize(model_class, doc.id, doc.to_dict())
+        return deserialize(model_class, doc.id, doc.to_dict())
 
     def find(
         self, model_class: type[T], document_id: str, *, parent: Model | None = None
@@ -145,7 +141,7 @@ class Cendry(_BaseCendry):
         doc = col_ref.document(document_id).get()
         if not doc.exists:
             return None
-        return self._deserialize(model_class, doc.id, doc.to_dict())
+        return deserialize(model_class, doc.id, doc.to_dict())
 
     def get_many(
         self,
@@ -160,11 +156,16 @@ class Cendry(_BaseCendry):
         """
         col_ref = self._get_collection_ref(model_class, parent)
         doc_refs = [col_ref.document(doc_id) for doc_id in document_ids]
-        docs = list(self._client.get_all(doc_refs))
-        missing = [doc.id for doc in docs if not doc.exists]
+        results: list[T] = []
+        missing: list[str] = []
+        for doc in self._client.get_all(doc_refs):
+            if not doc.exists:
+                missing.append(doc.id)
+            else:
+                results.append(deserialize(model_class, doc.id, doc.to_dict()))
         if missing:
             raise DocumentNotFoundError(model_class.__collection__, ", ".join(missing))
-        return [self._deserialize(model_class, doc.id, doc.to_dict()) for doc in docs]
+        return results
 
     def select(
         self,
@@ -248,7 +249,7 @@ class AsyncCendry(_BaseCendry):
         doc = await col_ref.document(document_id).get()
         if not doc.exists:
             raise DocumentNotFoundError(model_class.__collection__, document_id)
-        return self._deserialize(model_class, doc.id, doc.to_dict())
+        return deserialize(model_class, doc.id, doc.to_dict())
 
     async def find(
         self, model_class: type[T], document_id: str, *, parent: Model | None = None
@@ -258,7 +259,7 @@ class AsyncCendry(_BaseCendry):
         doc = await col_ref.document(document_id).get()
         if not doc.exists:
             return None
-        return self._deserialize(model_class, doc.id, doc.to_dict())
+        return deserialize(model_class, doc.id, doc.to_dict())
 
     async def get_many(
         self,
@@ -273,11 +274,16 @@ class AsyncCendry(_BaseCendry):
         """
         col_ref = self._get_collection_ref(model_class, parent)
         doc_refs = [col_ref.document(doc_id) for doc_id in document_ids]
-        docs = [doc async for doc in self._client.get_all(doc_refs)]
-        missing = [doc.id for doc in docs if not doc.exists]
+        results: list[T] = []
+        missing: list[str] = []
+        async for doc in self._client.get_all(doc_refs):
+            if not doc.exists:
+                missing.append(doc.id)
+            else:
+                results.append(deserialize(model_class, doc.id, doc.to_dict()))
         if missing:
             raise DocumentNotFoundError(model_class.__collection__, ", ".join(missing))
-        return [self._deserialize(model_class, doc.id, doc.to_dict()) for doc in docs]
+        return results
 
     def select(
         self,

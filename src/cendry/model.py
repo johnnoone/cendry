@@ -14,6 +14,10 @@ from .filters import Filter
 if TYPE_CHECKING:
     from .query import Asc, Desc
 
+# Metadata keys for dataclass field metadata
+METADATA_ALIAS = "cendry_alias"
+METADATA_ENUM_BY = "cendry_enum_by"
+
 # Maps operator strings to dunder symbols for repr
 _DUNDER_OPS: dict[str, str] = {"==": "==", "!=": "!=", ">": ">", ">=": ">=", "<": "<", "<=": "<="}
 _METHOD_OPS: dict[str, str] = {
@@ -181,9 +185,9 @@ def field(
     """Configure a model field with defaults and metadata."""
     metadata: dict[str, Any] = {}
     if alias is not None:
-        metadata["cendry_alias"] = alias
+        metadata[METADATA_ALIAS] = alias
     if enum_by != "value":
-        metadata["cendry_enum_by"] = enum_by
+        metadata[METADATA_ENUM_BY] = enum_by
     kwargs: dict[str, Any] = {}
     if default is not dataclasses.MISSING:
         kwargs["default"] = default
@@ -244,7 +248,7 @@ class _MapMeta(type):
 
         for f in dataclasses.fields(cls):  # type: ignore[arg-type]  # mypy: metaclass type mismatch
             if f.name != "id":
-                alias = f.metadata.get("cendry_alias") if f.metadata else None
+                alias = f.metadata.get(METADATA_ALIAS) if f.metadata else None
                 setattr(cls, f.name, FieldDescriptor(f.name, alias=alias, owner=cls))
 
         return cls

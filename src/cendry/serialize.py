@@ -1,16 +1,21 @@
 import dataclasses
+import functools
 import types
 from typing import Any, get_args, get_type_hints
 
-from .model import Map, Model
+from .model import METADATA_ALIAS, Map, Model
+
+
+@functools.cache
+def _cached_type_hints(cls: type) -> dict[str, Any]:
+    """Cache get_type_hints per class — avoids repeated MRO resolution."""
+    return get_type_hints(cls, include_extras=True)
 
 
 def _get_alias(f: dataclasses.Field[Any]) -> str:
     """Get the Firestore alias for a field, or its Python name."""
-    if f.metadata:
-        alias: str = f.metadata.get("cendry_alias", f.name)
-        return alias
-    return f.name
+    result: str = f.metadata.get(METADATA_ALIAS, f.name)
+    return result
 
 
 def resolve_map_type(hint: Any) -> type | None:
@@ -37,26 +42,24 @@ def _deserialize_value(value: Any, hint: Any) -> Any:
 
 def deserialize_map(map_class: type, data: dict[str, Any]) -> Any:
     """Recursively deserialize a Map from a dict. Always reads by alias."""
-    hints = get_type_hints(map_class, include_extras=True)
+    hints = _cached_type_hints(map_class)
     converted: dict[str, Any] = {}
     for f in dataclasses.fields(map_class):
         alias = _get_alias(f)
-        value = data.get(alias)
-        value = _deserialize_value(value, hints.get(f.name))
+        value = _deserialize_value(data.get(alias), hints.get(f.name))
         converted[f.name] = value
     return map_class(**converted)
 
 
 def deserialize[T: Model](model_class: type[T], doc_id: str | None, data: dict[str, Any]) -> T:
     """Convert a Firestore dict to a model instance. Always reads by alias."""
-    hints = get_type_hints(model_class, include_extras=True)
+    hints = _cached_type_hints(model_class)
     converted: dict[str, Any] = {}
     for f in dataclasses.fields(model_class):
         if f.name == "id":
             continue
         alias = _get_alias(f)
-        value = data.get(alias)
-        value = _deserialize_value(value, hints.get(f.name))
+        value = _deserialize_value(data.get(alias), hints.get(f.name))
         converted[f.name] = value
     return model_class(id=doc_id, **converted)
 
@@ -76,31 +79,25 @@ def from_dict[T: Model](
 
     Raises TypeError if required fields are missing.
     """
-    # Determine which key to check for each field
     missing = []
-    for f in dataclasses.fields(model_class):
-        if f.name == "id":
-            continue
-        if f.default is not dataclasses.MISSING or f.default_factory is not dataclasses.MISSING:
-            continue
-        key = _get_alias(f) if by_alias else f.name
-        if key not in data:
-            missing.append(f.name)
-    if missing:
-        fields = ", ".join(missing)
-        raise TypeError(f"from_dict({model_class.__name__}): missing required fields: {fields}")
-
-    if by_alias:
-        return deserialize(model_class, doc_id, data)
-
-    # by_alias=False: remap Python names to alias keys for deserialize
     remapped: dict[str, Any] = {}
     for f in dataclasses.fields(model_class):
         if f.name == "id":
             continue
         alias = _get_alias(f)
-        if f.name in data:
+        key = alias if by_alias else f.name
+        has_default = (
+            f.default is not dataclasses.MISSING or f.default_factory is not dataclasses.MISSING
+        )
+        if key not in data and not has_default:
+            missing.append(f.name)
+        elif not by_alias and f.name in data:
             remapped[alias] = data[f.name]
+    if missing:
+        fields = ", ".join(missing)
+        raise TypeError(f"from_dict({model_class.__name__}): missing required fields: {fields}")
+    if by_alias:
+        return deserialize(model_class, doc_id, data)
     return deserialize(model_class, doc_id, remapped)
 
 
@@ -128,15 +125,7 @@ def to_dict(
         by_alias: If True, use Firestore alias keys. If False (default), use Python field names.
         include_id: If True, include the document ID in the output.
     """
-    result: dict[str, Any] = {}
-    for f in dataclasses.fields(instance):
-        if f.name == "id":
-            if include_id:
-                result["id"] = instance.id  # type: ignore[union-attr]  # mypy: Map has no id
-            continue
-        value = getattr(instance, f.name)
-        key = _get_alias(f) if by_alias else f.name
-        if isinstance(value, Map):
-            value = _map_to_dict(value, by_alias=by_alias)
-        result[key] = value
+    result = _map_to_dict(instance, by_alias=by_alias)
+    if not include_id:
+        result.pop("id", None)
     return result
