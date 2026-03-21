@@ -1,8 +1,9 @@
+import dataclasses
 import datetime
 import types
 from collections.abc import Callable
 from decimal import Decimal
-from typing import Any, get_args, get_origin
+from typing import Any, get_args, get_origin, is_typeddict
 
 from google.cloud.firestore_v1._helpers import GeoPoint
 from google.cloud.firestore_v1.document import DocumentReference
@@ -80,8 +81,30 @@ class TypeRegistry:
                     self._validate_hint(arg, field_name, class_name, f"{container_name}[...]")
             return
 
-        # Structured types — added in Task 3
-        # Custom checkers — added in Task 4
+        # Structured types
+        if isinstance(hint, type):
+            from .model import Map, Model
+
+            if issubclass(hint, Model):
+                raise TypeError(
+                    f"Field '{field_name}' on '{class_name}': "
+                    f"cannot nest Model '{hint.__name__}'. "
+                    f"Use Map for embedded data."
+                )
+            if issubclass(hint, Map):
+                return
+            if dataclasses.is_dataclass(hint):
+                return
+            if is_typeddict(hint):
+                return
+
+            # Custom checkers
+            for checker in self._checkers:
+                try:
+                    if checker(hint):
+                        return
+                except TypeError:
+                    continue
 
         type_name = hint.__name__ if isinstance(hint, type) else str(hint)
         raise TypeError(

@@ -121,3 +121,54 @@ def test_bare_list_is_valid(registry: TypeRegistry):
 
 def test_bare_dict_is_valid(registry: TypeRegistry):
     registry.validate("data", dict, "TestModel")
+
+
+# --- Structured types ---
+
+
+def test_map_subclass_is_valid(registry: TypeRegistry):
+    from cendry import Field, Map
+
+    class Mayor(Map):
+        name: Field[str]
+
+    registry.validate("mayor", Mayor, "TestModel")
+
+
+def test_dataclass_is_valid(registry: TypeRegistry):
+    import dataclasses
+
+    @dataclasses.dataclass
+    class Point:
+        x: float
+        y: float
+
+    registry.validate("location", Point, "TestModel")
+
+
+def test_typeddict_is_valid(registry: TypeRegistry):
+    from typing import TypedDict
+
+    class Config(TypedDict):
+        key: str
+        value: int
+
+    registry.validate("config", Config, "TestModel")
+
+
+def test_model_is_invalid(registry: TypeRegistry):
+    from cendry import Field, Model
+
+    class City(Model, collection="cities_structured_test"):
+        name: Field[str]
+
+    with pytest.raises(TypeError, match="cannot nest"):
+        registry.validate("city", City, "TestModel")
+
+
+def test_unknown_class_is_invalid(registry: TypeRegistry):
+    class RandomClass:
+        pass
+
+    with pytest.raises(TypeError):
+        registry.validate("val", RandomClass, "TestModel")
