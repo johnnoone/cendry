@@ -191,13 +191,12 @@ def _serialize_value(value: Any, hint: Any, *, by_alias: bool, enum_by: str = "v
         args = get_args(hint)
         if args:
             if origin is tuple:  # pragma: no cover
-                return tuple(
+                return [
                     _serialize_value(v, a, by_alias=by_alias)
                     for v, a in zip(value, args, strict=False)
-                )
+                ]
             elem_hint = args[0]
-            converted = [_serialize_value(v, elem_hint, by_alias=by_alias) for v in value]
-            return set(converted) if origin is set else converted
+            return [_serialize_value(v, elem_hint, by_alias=by_alias) for v in value]
     if origin is dict and isinstance(value, dict):
         args = get_args(hint)
         if args and len(args) > 1:

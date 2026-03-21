@@ -226,3 +226,24 @@ def test_enum_optional_none():
 
     result = deserialize(OptUser, "u1", {"name": "Alice"})
     assert result.status is None
+
+
+# --- set/tuple serialization ---
+
+
+class TaggedItem(Model, collection="tagged_items"):
+    name: Field[str]
+    tags: Field[set[str]]
+
+
+def test_set_serializes_to_list():
+    item = TaggedItem(name="item", tags={"a", "b", "c"})
+    result = to_dict(item)
+    assert isinstance(result["tags"], list)
+    assert sorted(result["tags"]) == ["a", "b", "c"]
+
+
+def test_set_deserializes_from_list():
+    result = deserialize(TaggedItem, "t1", {"name": "item", "tags": ["a", "b", "c"]})
+    assert isinstance(result.tags, set)
+    assert result.tags == {"a", "b", "c"}
