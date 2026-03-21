@@ -156,7 +156,7 @@ class _BaseCendry:
             return FsAnd(filters=[self._to_firestore_filter(sub) for sub in f.filters])
         elif isinstance(f, Or):
             return FsOr(filters=[self._to_firestore_filter(sub) for sub in f.filters])
-        else:
+        else:  # pragma: no cover
             raise CendryError(f"Unknown filter type: {type(f)}")
 
     def _cursor_value(self, cursor: dict[str, Any] | Model) -> dict[str, Any]:
