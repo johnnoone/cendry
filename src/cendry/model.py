@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Any, get_args, get_origin, overload
+from typing import Any, ClassVar, dataclass_transform, get_args, get_origin, overload
 
 from .filters import Filter
 
@@ -109,6 +109,7 @@ def _unwrap_field_type(hint: Any) -> Any:
     return hint  # pragma: no cover
 
 
+@dataclass_transform(kw_only_default=True, field_specifiers=(Field, field))
 class _MapMeta(type):
     """Metaclass for Map that applies dataclass and sets up field descriptors."""
 
@@ -135,7 +136,7 @@ class _MapMeta(type):
         )
         if is_model_subclass and "id" not in rewritten:
             rewritten["id"] = str | None
-            cls.id = dataclasses.field(default=None, kw_only=True)  # type: ignore[attr-defined]  # mypy: dynamic attr on metaclass
+            cls.id = dataclasses.field(default=None)  # type: ignore[attr-defined]  # mypy: dynamic attr on metaclass
 
         cls.__annotations__ = rewritten
 
@@ -145,7 +146,7 @@ class _MapMeta(type):
             inner = _unwrap_field_type(hint)
             default_registry.validate(attr_name, inner, name)
 
-        cls = dataclasses.dataclass(cls)  # type: ignore[arg-type,assignment]  # mypy: metaclass type mismatch
+        cls = dataclasses.dataclass(kw_only=True)(cls)  # type: ignore[arg-type,assignment]  # mypy: metaclass type mismatch
 
         for f in dataclasses.fields(cls):  # type: ignore[arg-type]  # mypy: metaclass type mismatch
             if f.name != "id":
@@ -161,8 +162,8 @@ class Map(metaclass=_MapMeta):
 class Model(Map):
     """Base class for Firestore documents bound to a collection."""
 
-    __collection__: str
-    id: str | None = dataclasses.field(default=None, init=True)
+    __collection__: ClassVar[str]
+    id: str | None = dataclasses.field(default=None)
 
     def __init_subclass__(cls, collection: str | None = None, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)

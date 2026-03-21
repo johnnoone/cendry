@@ -26,7 +26,7 @@ class _BaseCendry:
         """Convert a Firestore document dict to a model instance."""
         hints = get_type_hints(model_class, include_extras=True)
         converted: dict[str, Any] = {}
-        for f in dataclasses.fields(model_class):  # type: ignore[arg-type]
+        for f in dataclasses.fields(model_class):
             if f.name == "id":
                 continue
             value = data.get(f.name)
@@ -36,7 +36,7 @@ class _BaseCendry:
                     value = self._deserialize_map(inner, value)
             converted[f.name] = value
 
-        return model_class(id=doc_id, **converted)  # type: ignore[call-arg]
+        return model_class(id=doc_id, **converted)
 
     def _resolve_map_type(self, hint: Any) -> type | None:
         """Resolve a type hint to a concrete Map subclass if applicable."""
@@ -143,7 +143,7 @@ class _BaseCendry:
     def _cursor_value(self, cursor: dict[str, Any] | Model) -> dict[str, Any]:
         """Convert a cursor to a dict for Firestore."""
         if isinstance(cursor, Model):
-            d: dict[str, Any] = dataclasses.asdict(cursor)  # type: ignore[call-overload]
+            d: dict[str, Any] = dataclasses.asdict(cursor)
             d.pop("id", None)
             return d
         return cursor
