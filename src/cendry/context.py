@@ -8,9 +8,9 @@ from google.cloud.firestore_v1.base_query import And as FsAnd
 from google.cloud.firestore_v1.base_query import FieldFilter as FsFieldFilter
 from google.cloud.firestore_v1.base_query import Or as FsOr
 
-from cendry.exceptions import CendryError, DocumentNotFoundError
-from cendry.filters import And, Or
-from cendry.model import FieldFilterResult, Map, Model
+from .exceptions import CendryError, DocumentNotFoundError
+from .filters import And, Or
+from .model import FieldFilterResult, Map, Model
 
 T = TypeVar("T", bound=Model)
 

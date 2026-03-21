@@ -2,7 +2,7 @@ import dataclasses
 import types
 from typing import Any, get_args, get_origin
 
-from cendry.filters import Filter
+from .filters import Filter
 
 
 class FieldFilterResult(Filter):

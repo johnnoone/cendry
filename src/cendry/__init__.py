@@ -1,10 +1,10 @@
 """Cendry — A Firestore ODM for Python."""
 
-from cendry.context import AsyncCendry, Cendry
-from cendry.exceptions import CendryError, DocumentNotFoundError
-from cendry.filters import And, FieldFilter, Or
-from cendry.model import Field, Map, Model, field
-from cendry.query import Asc, Desc
+from .context import AsyncCendry, Cendry
+from .exceptions import CendryError, DocumentNotFoundError
+from .filters import And, FieldFilter, Or
+from .model import Field, Map, Model, field
+from .query import Asc, Desc
 
 __all__ = [
     "And",

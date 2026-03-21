@@ -86,5 +86,9 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = ["cendry"]
 
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "parents"
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
+"src/cendry/**" = ["TID252"]

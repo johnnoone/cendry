@@ -1,6 +1,6 @@
 from google.cloud.firestore_v1.base_query import FieldFilter as FieldFilter
 
-from cendry.exceptions import CendryError
+from .exceptions import CendryError
 
 
 class Filter:

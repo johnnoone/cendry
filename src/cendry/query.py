@@ -1,4 +1,4 @@
-from cendry.model import FieldDescriptor
+from .model import FieldDescriptor
 
 
 class _Order:
