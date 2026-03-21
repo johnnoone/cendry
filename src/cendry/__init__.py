@@ -1,7 +1,7 @@
 """Cendry — A Firestore ODM for Python."""
 
 from .context import AsyncCendry, Cendry
-from .exceptions import CendryError, DocumentNotFoundError
+from .exceptions import CendryError, DocumentAlreadyExistsError, DocumentNotFoundError
 from .filters import And, FieldFilter, Or
 from .model import Field, FieldDescriptor, Map, Model, field
 from .query import Asc, AsyncQuery, Desc, Query
@@ -17,6 +17,7 @@ __all__ = [
     "Cendry",
     "CendryError",
     "Desc",
+    "DocumentAlreadyExistsError",
     "DocumentNotFoundError",
     "Field",
     "FieldDescriptor",

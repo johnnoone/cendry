@@ -10,6 +10,7 @@ def test_public_api_exports():
         "Cendry",
         "CendryError",
         "Desc",
+        "DocumentAlreadyExistsError",
         "DocumentNotFoundError",
         "Field",
         "FieldDescriptor",
