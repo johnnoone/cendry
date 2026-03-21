@@ -1,6 +1,7 @@
 import dataclasses
 from typing import Any, Self, TypeVar, overload
 
+from google.api_core.exceptions import NotFound
 from google.cloud.exceptions import Conflict
 from google.cloud.firestore import Client
 from google.cloud.firestore_v1.base_query import And as FsAnd
@@ -11,7 +12,7 @@ from .exceptions import CendryError, DocumentAlreadyExistsError, DocumentNotFoun
 from .filters import And, Or
 from .model import FieldFilterResult, Model
 from .query import AsyncQuery, Query
-from .serialize import deserialize, to_dict
+from .serialize import deserialize, resolve_field_path, serialize_update_value, to_dict
 from .types import TypeRegistry, default_registry
 
 T = TypeVar("T", bound=Model)
@@ -357,6 +358,63 @@ class Cendry(_BaseCendry):
                 if not doc.exists:
                     raise DocumentNotFoundError(instance_or_class.__collection__, doc_id)
             col_ref.document(doc_id).delete()
+
+    @overload
+    def update(
+        self, instance: Model, field_updates: dict[str, Any], *, parent: Model | None = None
+    ) -> None: ...
+    @overload
+    def update(
+        self,
+        model_class: type[T],
+        doc_id: str,
+        field_updates: dict[str, Any],
+        *,
+        parent: Model | None = None,
+    ) -> None: ...
+
+    def update(  # type: ignore[misc]
+        self,
+        instance_or_class: Model | type[T],
+        field_updates_or_doc_id: dict[str, Any] | str,
+        field_updates_or_none: dict[str, Any] | None = None,
+        *,
+        parent: Model | None = None,
+    ) -> None:
+        """Partially update a document's fields.
+
+        Args:
+            instance_or_class: A Model instance, or a Model class.
+            field_updates_or_doc_id: Field updates dict (instance form) or doc ID (class form).
+            field_updates_or_none: Field updates dict (class form only).
+            parent: Parent document for subcollection updates.
+
+        Raises:
+            DocumentNotFoundError: If the document does not exist.
+        """
+        if isinstance(instance_or_class, Model):
+            if instance_or_class.id is None:
+                raise CendryError("Cannot update a model instance with id=None")
+            model_class = type(instance_or_class)
+            doc_id = instance_or_class.id
+            field_updates = field_updates_or_doc_id
+        else:
+            model_class = instance_or_class
+            doc_id = field_updates_or_doc_id
+            field_updates = field_updates_or_none
+            assert field_updates is not None
+
+        resolved = {
+            resolve_field_path(model_class, k): serialize_update_value(
+                v, registry=self.type_registry
+            )
+            for k, v in field_updates.items()
+        }
+        col_ref = self._get_collection_ref(model_class, parent)
+        try:
+            col_ref.document(doc_id).update(resolved)
+        except NotFound as e:
+            raise DocumentNotFoundError(model_class.__collection__, doc_id) from e
 
 
 class AsyncCendry(_BaseCendry):

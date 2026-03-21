@@ -17,6 +17,8 @@ from cendry import (
     Model,
     Or,
 )
+from google.api_core.exceptions import NotFound
+
 from cendry.serialize import to_dict
 from cendry.types import BaseTypeHandler, TypeRegistry, default_registry
 from tests.conftest import SF_DATA, City, Mayor, Neighborhood, make_mock_document
@@ -1114,3 +1116,136 @@ async def test_async_select_iteration_uses_context_registry(mock_firestore_clien
 
     assert len(results) == 1
     assert isinstance(results[0].temp, Celsius)
+
+
+# --- update ---
+
+
+def test_update_by_instance(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    ctx = Cendry(client=mock_firestore_client)
+
+    ctx.update(city, {"name": "New Name", "population": 1_000_000})
+
+    doc_ref = mock_firestore_client.collection.return_value.document
+    doc_ref.assert_called_with("SF")
+    doc_ref.return_value.update.assert_called_once()
+    call_data = doc_ref.return_value.update.call_args[0][0]
+    assert call_data["name"] == "New Name"
+    assert call_data["population"] == 1_000_000
+
+
+def test_update_by_class_and_id(mock_firestore_client: MagicMock):
+    ctx = Cendry(client=mock_firestore_client)
+
+    ctx.update(City, "SF", {"name": "New Name"})
+
+    doc_ref = mock_firestore_client.collection.return_value.document
+    doc_ref.assert_called_with("SF")
+    doc_ref.return_value.update.assert_called_once()
+
+
+def test_update_dot_notation(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    ctx = Cendry(client=mock_firestore_client)
+
+    ctx.update(city, {"mayor.name": "Jane"})
+
+    call_data = (
+        mock_firestore_client.collection.return_value.document.return_value.update.call_args[0][0]
+    )
+    assert "mayor.name" in call_data
+
+
+def test_update_alias_resolution(mock_firestore_client: MagicMock):
+    from cendry import field as cendry_field
+
+    class AliasCity(Model, collection="alias_cities"):
+        display_name: Field[str] = cendry_field(alias="displayName")
+
+    city = AliasCity(display_name="SF", id="SF")
+    ctx = Cendry(client=mock_firestore_client)
+
+    ctx.update(city, {"display_name": "San Francisco"})
+
+    call_data = (
+        mock_firestore_client.collection.return_value.document.return_value.update.call_args[0][0]
+    )
+    assert "displayName" in call_data
+    assert "display_name" not in call_data
+
+
+def test_update_with_sentinel(mock_firestore_client: MagicMock):
+    from google.cloud.firestore import DELETE_FIELD, SERVER_TIMESTAMP
+
+    city = City(**SF_DATA, id="SF")
+    ctx = Cendry(client=mock_firestore_client)
+
+    ctx.update(city, {"nickname": DELETE_FIELD, "name": SERVER_TIMESTAMP})
+
+    call_data = (
+        mock_firestore_client.collection.return_value.document.return_value.update.call_args[0][0]
+    )
+    assert call_data["nickname"] is DELETE_FIELD
+    assert call_data["name"] is SERVER_TIMESTAMP
+
+
+def test_update_with_transform(mock_firestore_client: MagicMock):
+    from google.cloud.firestore import Increment
+
+    city = City(**SF_DATA, id="SF")
+    ctx = Cendry(client=mock_firestore_client)
+    inc = Increment(1)
+
+    ctx.update(city, {"population": inc})
+
+    call_data = (
+        mock_firestore_client.collection.return_value.document.return_value.update.call_args[0][0]
+    )
+    assert call_data["population"] is inc
+
+
+def test_update_instance_no_id_raises(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA)  # id=None
+    ctx = Cendry(client=mock_firestore_client)
+
+    with pytest.raises(CendryError, match="Cannot update a model instance with id=None"):
+        ctx.update(city, {"name": "New"})
+
+
+def test_update_missing_doc_raises(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    mock_firestore_client.collection.return_value.document.return_value.update.side_effect = (
+        NotFound("not found")
+    )
+
+    ctx = Cendry(client=mock_firestore_client)
+    with pytest.raises(DocumentNotFoundError) as exc_info:
+        ctx.update(city, {"name": "New"})
+
+    assert isinstance(exc_info.value.__cause__, NotFound)
+
+
+def test_update_with_parent(mock_firestore_client: MagicMock):
+    parent = City(**SF_DATA, id="SF")
+    parent_doc = mock_firestore_client.collection.return_value.document.return_value
+    sub_doc_ref = parent_doc.collection.return_value.document.return_value
+
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.update(Neighborhood, "MISSION", {"population": 65_000}, parent=parent)
+
+    sub_doc_ref.update.assert_called_once()
+
+
+def test_update_with_custom_type_handler(mock_firestore_client: MagicMock):
+    custom = TypeRegistry()
+    custom.register(Celsius, handler=CelsiusHandler())
+    weather = Weather(city="SF", temp=Celsius(20.5), id="w1")
+
+    ctx = Cendry(client=mock_firestore_client, type_registry=custom)
+    ctx.update(weather, {"temp": Celsius(25.0)})
+
+    call_data = (
+        mock_firestore_client.collection.return_value.document.return_value.update.call_args[0][0]
+    )
+    assert call_data["temp"] == 25.0
