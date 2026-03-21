@@ -534,3 +534,20 @@ async def test_async_cendry_accepts_type_registry(mock_firestore_client: MagicMo
     registry = TypeRegistry()
     ctx = AsyncCendry(client=mock_firestore_client, type_registry=registry)
     assert ctx.type_registry is registry
+
+
+# --- Context manager ---
+
+
+def test_cendry_context_manager(mock_firestore_client: MagicMock):
+    with Cendry(client=mock_firestore_client) as ctx:
+        assert isinstance(ctx, Cendry)
+    mock_firestore_client.close.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_async_cendry_context_manager(mock_firestore_client: MagicMock):
+    mock_firestore_client.close = AsyncMock()
+    async with AsyncCendry(client=mock_firestore_client) as ctx:
+        assert isinstance(ctx, AsyncCendry)
+    mock_firestore_client.close.assert_called_once()

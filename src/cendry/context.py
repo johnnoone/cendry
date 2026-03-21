@@ -161,6 +161,12 @@ class Cendry(_BaseCendry):
         self._client = client or Client()
         self.type_registry = type_registry or default_registry
 
+    def __enter__(self) -> "Cendry":
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        self._client.close()
+
     def get(self, model_class: type[T], document_id: str, *, parent: Model | None = None) -> T:
         """Get a document by ID. Raises DocumentNotFoundError if it doesn't exist."""
         col_ref = self._get_collection_ref(model_class, parent)
@@ -248,6 +254,12 @@ class AsyncCendry(_BaseCendry):
             client = AsyncClient()
         self._client = client
         self.type_registry = type_registry or default_registry
+
+    async def __aenter__(self) -> "AsyncCendry":
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        await self._client.close()
 
     async def get(
         self, model_class: type[T], document_id: str, *, parent: Model | None = None
