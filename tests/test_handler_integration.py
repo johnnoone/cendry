@@ -1,8 +1,10 @@
 """Integration tests for type handler system with serialization."""
 
+import enum
 from unittest.mock import MagicMock
 
 from cendry import Cendry, Field, Model
+from cendry import field as cendry_field
 from cendry.serialize import deserialize, from_dict, to_dict
 from cendry.types import BaseTypeHandler, default_registry
 from tests.conftest import make_mock_document
@@ -157,3 +159,62 @@ def test_to_dict_dict_of_handler_type():
     )
     result = to_dict(ledger)
     assert result["accounts"]["checking"] == {"amount": 100, "currency": "USD"}
+
+
+# --- Enum conversion ---
+
+
+class Status(enum.Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+
+class Role(enum.Enum):
+    ADMIN = "admin"
+    USER = "user"
+
+
+class UserByValue(Model, collection="users_by_value"):
+    name: Field[str]
+    status: Field[Status]
+
+
+class UserByName(Model, collection="users_by_name"):
+    name: Field[str]
+    role: Field[Role] = cendry_field(enum_by="name")
+
+
+def test_enum_deserialize_by_value():
+    result = deserialize(UserByValue, "u1", {"name": "Alice", "status": "active"})
+    assert result.status is Status.ACTIVE
+
+
+def test_enum_deserialize_by_name():
+    result = deserialize(UserByName, "u1", {"name": "Alice", "role": "ADMIN"})
+    assert result.role is Role.ADMIN
+
+
+def test_enum_serialize_by_value():
+    user = UserByValue(name="Alice", status=Status.INACTIVE)
+    result = to_dict(user)
+    assert result["status"] == "inactive"
+
+
+def test_enum_serialize_by_name():
+    user = UserByName(name="Alice", role=Role.USER)
+    result = to_dict(user)
+    assert result["role"] == "USER"
+
+
+def test_enum_from_dict():
+    user = from_dict(UserByValue, {"name": "Alice", "status": "active"})
+    assert user.status is Status.ACTIVE
+
+
+def test_enum_optional_none():
+    class OptUser(Model, collection="opt_users"):
+        name: Field[str]
+        status: Field[Status | None] = cendry_field(default=None)
+
+    result = deserialize(OptUser, "u1", {"name": "Alice"})
+    assert result.status is None

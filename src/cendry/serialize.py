@@ -3,7 +3,7 @@ import functools
 import types
 from typing import Any, get_args, get_origin, get_type_hints
 
-from .model import METADATA_ALIAS, Map, Model
+from .model import METADATA_ALIAS, METADATA_ENUM_BY, Map, Model
 
 
 @functools.cache
@@ -39,11 +39,13 @@ def resolve_map_type(hint: Any) -> type | None:
     return None
 
 
-def _deserialize_value(value: Any, hint: Any) -> Any:
-    """Deserialize a single value, checking handlers then Map nesting.
+def _deserialize_value(value: Any, hint: Any, *, enum_by: str = "value") -> Any:
+    """Deserialize a single value, checking handlers, enums, then Map nesting.
 
     Handles containers: list[Money] deserializes each element via MoneyHandler.
     """
+    import enum
+
     from .types import default_registry
 
     if value is None:
@@ -55,6 +57,11 @@ def _deserialize_value(value: Any, hint: Any) -> Any:
         handler = default_registry.get_handler(inner_type)
         if handler is not None:
             return handler.deserialize(value)
+        # Enum conversion
+        if isinstance(inner_type, type) and issubclass(inner_type, enum.Enum):
+            if enum_by == "name":
+                return inner_type[value]
+            return inner_type(value)
 
     # Container types: recurse into elements
     origin = get_origin(hint)
@@ -82,13 +89,21 @@ def _deserialize_value(value: Any, hint: Any) -> Any:
     return value
 
 
+def _get_enum_by(f: dataclasses.Field[Any]) -> str:
+    """Get enum_by setting from field metadata. Defaults to 'value'."""
+    if f.metadata:
+        result: str = f.metadata.get(METADATA_ENUM_BY, "value")
+        return result
+    return "value"
+
+
 def deserialize_map(map_class: type, data: dict[str, Any]) -> Any:
     """Recursively deserialize a Map from a dict. Always reads by alias."""
     hints = _cached_type_hints(map_class)
     converted: dict[str, Any] = {}
     for f in dataclasses.fields(map_class):
         alias = _get_alias(f)
-        value = _deserialize_value(data.get(alias), hints.get(f.name))
+        value = _deserialize_value(data.get(alias), hints.get(f.name), enum_by=_get_enum_by(f))
         converted[f.name] = value
     return map_class(**converted)
 
@@ -101,7 +116,7 @@ def deserialize[T: Model](model_class: type[T], doc_id: str | None, data: dict[s
         if f.name == "id":
             continue
         alias = _get_alias(f)
-        value = _deserialize_value(data.get(alias), hints.get(f.name))
+        value = _deserialize_value(data.get(alias), hints.get(f.name), enum_by=_get_enum_by(f))
         converted[f.name] = value
     return model_class(id=doc_id, **converted)
 
@@ -151,11 +166,15 @@ def from_dict[T: Model](
     return deserialize(model_class, doc_id, remapped)
 
 
-def _serialize_value(value: Any, hint: Any, *, by_alias: bool) -> Any:
-    """Serialize a single value, checking handlers then Map nesting.
+def _serialize_value(
+    value: Any, hint: Any, *, by_alias: bool, enum_by: str = "value"
+) -> Any:
+    """Serialize a single value, checking handlers, enums, then Map nesting.
 
     Handles containers: list[Money] serializes each element via MoneyHandler.
     """
+    import enum as enum_mod
+
     if value is None:
         return None
     from .types import default_registry
@@ -166,6 +185,9 @@ def _serialize_value(value: Any, hint: Any, *, by_alias: bool) -> Any:
         handler = default_registry.get_handler(inner_type)
         if handler is not None:
             return handler.serialize(value)
+        # Enum conversion
+        if isinstance(value, enum_mod.Enum):
+            return value.name if enum_by == "name" else value.value
 
     # Container types: recurse into elements
     origin = get_origin(hint)
@@ -201,7 +223,9 @@ def _map_to_dict(instance: Map, *, by_alias: bool) -> dict[str, Any]:
     for f in dataclasses.fields(instance):
         value = getattr(instance, f.name)
         key = _get_alias(f) if by_alias else f.name
-        value = _serialize_value(value, hints.get(f.name), by_alias=by_alias)
+        value = _serialize_value(
+            value, hints.get(f.name), by_alias=by_alias, enum_by=_get_enum_by(f),
+        )
         result[key] = value
     return result
 
