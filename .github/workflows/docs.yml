@@ -23,4 +23,4 @@ jobs:
         run: uv sync
 
       - name: Deploy to GitHub Pages
-        run: uv run mkdocs gh-deploy --force
+        run: uv run zensical gh-deploy --force
