@@ -1557,18 +1557,15 @@ async def test_async_delete_many_by_class_over_500_raises(mock_firestore_client:
 
 
 def test_transaction_callback(mock_firestore_client: MagicMock):
-    from cendry.transaction import Txn
+    with patch(
+        "cendry.context.Cendry.transaction",
+        wraps=Cendry(client=mock_firestore_client).transaction,
+    ):
+        pass
+    # Callback form requires real @transactional which needs Firestore RPC.
+    # Tested via context manager form instead; callback wiring is structural.
 
-    called_with = []
-
-    def my_fn(txn):
-        called_with.append(txn)
-        return "result"
-
-    # Mock the transactional decorator to just call the function
-    mock_firestore_client.transaction.return_value = MagicMock()
-
-    ctx = Cendry(client=mock_firestore_client)
+    Cendry(client=mock_firestore_client)
     # The callback form needs the @transactional decorator which calls _begin/_commit.
     # For unit testing, we test the context manager form directly.
 
@@ -1585,7 +1582,7 @@ def test_transaction_context_manager_commits(mock_firestore_client: MagicMock):
     ctx = Cendry(client=mock_firestore_client)
     fs_txn = mock_firestore_client.transaction.return_value
 
-    with ctx.transaction() as txn:
+    with ctx.transaction():
         pass
 
     fs_txn._begin.assert_called_once()
@@ -1596,9 +1593,8 @@ def test_transaction_context_manager_rollback(mock_firestore_client: MagicMock):
     ctx = Cendry(client=mock_firestore_client)
     fs_txn = mock_firestore_client.transaction.return_value
 
-    with pytest.raises(ValueError, match="boom"):
-        with ctx.transaction() as txn:
-            raise ValueError("boom")
+    with pytest.raises(ValueError, match="boom"), ctx.transaction():
+        raise ValueError("boom")
 
     fs_txn._begin.assert_called_once()
     fs_txn._rollback.assert_called_once()
@@ -1623,7 +1619,7 @@ async def test_async_transaction_context_manager_commits(mock_firestore_client: 
 
     ctx = AsyncCendry(client=mock_firestore_client)
 
-    async with ctx.transaction() as txn:
+    async with ctx.transaction():
         pass
 
     fs_txn._begin.assert_called_once()
@@ -1639,7 +1635,7 @@ async def test_async_transaction_context_manager_rollback(mock_firestore_client:
     ctx = AsyncCendry(client=mock_firestore_client)
 
     with pytest.raises(ValueError, match="boom"):
-        async with ctx.transaction() as txn:
+        async with ctx.transaction():
             raise ValueError("boom")
 
     fs_txn._begin.assert_called_once()

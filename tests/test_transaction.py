@@ -80,7 +80,7 @@ def test_txn_save_explicit_id():
 
 
 def test_txn_save_auto_id():
-    txn, fs_txn, client = make_txn_and_client()
+    txn, _fs_txn, client = make_txn_and_client()
     city = City(**SF_DATA)
     doc_ref = client.collection.return_value.document.return_value
     doc_ref.id = "auto-123"
@@ -174,9 +174,8 @@ def test_txn_context_manager_commits():
 def test_txn_context_manager_rollback_on_exception():
     txn, fs_txn, _ = make_txn_and_client()
 
-    with pytest.raises(ValueError, match="boom"):
-        with txn:
-            raise ValueError("boom")
+    with pytest.raises(ValueError, match="boom"), txn:
+        raise ValueError("boom")
 
     fs_txn._begin.assert_called_once()
     fs_txn._rollback.assert_called_once()
@@ -204,7 +203,7 @@ def make_async_txn_and_client():
 
 @pytest.mark.anyio
 async def test_async_txn_get_returns_model():
-    txn, fs_txn, client = make_async_txn_and_client()
+    txn, _fs_txn, client = make_async_txn_and_client()
     doc = make_mock_document("SF", SF_DATA)
     client.collection.return_value.document.return_value.get = AsyncMock(return_value=doc)
 
@@ -313,3 +312,70 @@ async def test_async_txn_context_manager_rollback_on_exception():
     fs_txn._begin.assert_called_once()
     fs_txn._rollback.assert_called_once()
     fs_txn._commit.assert_not_called()
+
+
+# --- Additional coverage tests ---
+
+
+def test_txn_create_auto_id():
+    txn, _fs_txn, client = make_txn_and_client()
+    city = City(**SF_DATA)
+    doc_ref = client.collection.return_value.document.return_value
+    doc_ref.id = "auto-create-123"
+
+    txn.create(city)
+
+    assert city.id == "auto-create-123"
+
+
+@pytest.mark.anyio
+async def test_async_txn_find_returns_model():
+    txn, _fs_txn, client = make_async_txn_and_client()
+    doc = make_mock_document("SF", SF_DATA)
+    client.collection.return_value.document.return_value.get = AsyncMock(return_value=doc)
+
+    city = await txn.find(City, "SF")
+    assert city is not None
+    assert city.name == "San Francisco"
+
+
+@pytest.mark.anyio
+async def test_async_txn_save_auto_id():
+    txn, _fs_txn, client = make_async_txn_and_client()
+    city = City(**SF_DATA)
+    doc_ref = client.collection.return_value.document.return_value
+    doc_ref.id = "auto-async-save"
+
+    txn.save(city)
+
+    assert city.id == "auto-async-save"
+
+
+@pytest.mark.anyio
+async def test_async_txn_create_auto_id():
+    txn, _fs_txn, client = make_async_txn_and_client()
+    city = City(**SF_DATA)
+    doc_ref = client.collection.return_value.document.return_value
+    doc_ref.id = "auto-async-create"
+
+    txn.create(city)
+
+    assert city.id == "auto-async-create"
+
+
+@pytest.mark.anyio
+async def test_async_txn_update_by_class_and_id():
+    txn, fs_txn, _ = make_async_txn_and_client()
+
+    txn.update(City, "SF", {"name": "New"})
+
+    fs_txn.update.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_async_txn_delete_by_class_and_id():
+    txn, fs_txn, _ = make_async_txn_and_client()
+
+    txn.delete(City, "SF")
+
+    fs_txn.delete.assert_called_once()

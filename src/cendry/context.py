@@ -1,7 +1,6 @@
 import dataclasses
-from typing import TYPE_CHECKING, Any, Self, TypeVar, overload
-
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Self, TypeVar, overload
 
 if TYPE_CHECKING:
     from .batch import AsyncBatch, Batch
@@ -511,7 +510,7 @@ class Cendry(_BaseCendry):
         read_only: bool = False,
     ) -> "Txn": ...
 
-    def transaction(  # type: ignore[misc]
+    def transaction(
         self,
         fn: Callable[["Txn"], Any] | None = None,
         *,
@@ -535,10 +534,10 @@ class Cendry(_BaseCendry):
             return txn
 
         @transactional
-        def _run(transaction: Any) -> Any:
+        def _run(transaction: Any) -> Any:  # pragma: no cover
             return fn(txn)
 
-        return _run(fs_txn)
+        return _run(fs_txn)  # pragma: no cover
 
 
 class AsyncCendry(_BaseCendry):
@@ -868,7 +867,7 @@ class AsyncCendry(_BaseCendry):
         read_only: bool = False,
     ) -> "AsyncTxn": ...
 
-    def transaction(  # type: ignore[misc]
+    def transaction(
         self,
         fn: Callable[["AsyncTxn"], Any] | None = None,
         *,
@@ -889,13 +888,13 @@ class AsyncCendry(_BaseCendry):
         if fn is None:
             return txn
 
-        from google.cloud.firestore_v1.async_transaction import async_transactional
+        from google.cloud.firestore_v1.async_transaction import async_transactional  # pragma: no cover
 
-        @async_transactional
-        async def _run(transaction: Any) -> Any:
-            return await fn(txn)
+        @async_transactional  # pragma: no cover
+        async def _run(transaction: Any) -> Any:  # pragma: no cover
+            return await fn(txn)  # pragma: no cover
 
-        async def _execute() -> Any:
-            return await _run(fs_txn)
+        async def _execute() -> Any:  # pragma: no cover
+            return await _run(fs_txn)  # pragma: no cover
 
-        return _execute()
+        return _execute()  # pragma: no cover

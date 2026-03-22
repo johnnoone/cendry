@@ -1,4 +1,3 @@
-import dataclasses
 from collections.abc import Callable
 from typing import Any, Self, TypeVar, overload
 
@@ -132,9 +131,7 @@ class Txn:
             assert field_updates is not None
 
         resolved = {
-            resolve_field_path(model_class, k): serialize_update_value(
-                v, registry=self._registry
-            )
+            resolve_field_path(model_class, k): serialize_update_value(v, registry=self._registry)
             for k, v in field_updates.items()
         }
         col_ref = self._get_collection_ref(model_class, parent)
@@ -195,9 +192,7 @@ class AsyncTxn:
 
     # --- Reads ---
 
-    async def get(
-        self, model_class: type[T], doc_id: str, *, parent: Model | None = None
-    ) -> T:
+    async def get(self, model_class: type[T], doc_id: str, *, parent: Model | None = None) -> T:
         """Read a document within the transaction."""
         col_ref = self._get_collection_ref(model_class, parent)
         doc = await col_ref.document(doc_id).get(transaction=self._transaction)
@@ -274,9 +269,7 @@ class AsyncTxn:
             assert field_updates is not None
 
         resolved = {
-            resolve_field_path(model_class, k): serialize_update_value(
-                v, registry=self._registry
-            )
+            resolve_field_path(model_class, k): serialize_update_value(v, registry=self._registry)
             for k, v in field_updates.items()
         }
         col_ref = self._get_collection_ref(model_class, parent)
