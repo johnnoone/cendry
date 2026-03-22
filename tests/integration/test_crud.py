@@ -44,7 +44,7 @@ def test_save_overwrites(firestore_client, clean_collection):
     city = City(name="SF", state="CA", population=870_000, id="overwrite-test")
     ctx.save(city)
 
-    city.population = 900_000
+    city.population = 900_000  # type: ignore[assignment]
     ctx.save(city)
 
     fetched = ctx.get(City, "overwrite-test")

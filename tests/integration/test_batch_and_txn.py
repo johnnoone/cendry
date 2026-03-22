@@ -90,7 +90,7 @@ def test_transaction_context_manager(firestore_client, clean_collection):
 
     with ctx.transaction() as txn:
         city = txn.get(City, "txn")
-        txn.update(city, {"population": city.population + 250})
+        txn.update(city, {"population": city.population + 250})  # type: ignore[operator]
 
     fetched = ctx.get(City, "txn")
     assert fetched.population == 750
