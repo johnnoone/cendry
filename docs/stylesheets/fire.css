@@ -1,0 +1,60 @@
+/*
+ * Cendry fire palette
+ *
+ * #FDF2B4 — warm cream (lightest)
+ * #FDE492 — soft gold
+ * #FFB526 — amber
+ * #FD9212 — deep orange
+ * #9E1201 — ember red (darkest)
+ */
+
+/* ---- Light mode ---- */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #9E1201;
+  --md-primary-fg-color--light: #FD9212;
+  --md-primary-fg-color--dark: #7A0E01;
+  --md-primary-bg-color: #FDF2B4;
+  --md-primary-bg-color--light: #FDF2B4;
+
+  --md-accent-fg-color: #FFB526;
+  --md-accent-fg-color--transparent: rgba(255, 181, 38, 0.1);
+  --md-accent-bg-color: #FDF2B4;
+
+  /* Header gradient — ember to deep orange */
+  --md-typeset-a-color: #9E1201;
+
+  /* Admonition accents */
+  --md-admonition-fg-color: #3a3a3a;
+}
+
+/* Header background */
+[data-md-color-scheme="default"] .md-header {
+  background-color: #9E1201;
+}
+
+/* Tabs */
+[data-md-color-scheme="default"] .md-tabs {
+  background-color: #7A0E01;
+}
+
+/* ---- Dark mode ---- */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #FD9212;
+  --md-primary-fg-color--light: #FFB526;
+  --md-primary-fg-color--dark: #9E1201;
+  --md-primary-bg-color: #1a1a1a;
+  --md-primary-bg-color--light: #2a2a2a;
+
+  --md-accent-fg-color: #FFB526;
+  --md-accent-fg-color--transparent: rgba(255, 181, 38, 0.1);
+
+  --md-typeset-a-color: #FD9212;
+}
+
+[data-md-color-scheme="slate"] .md-header {
+  background-color: #2a1a0a;
+}
+
+[data-md-color-scheme="slate"] .md-tabs {
+  background-color: #1a0f05;
+}
