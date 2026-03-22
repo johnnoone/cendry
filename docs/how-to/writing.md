@@ -167,6 +167,54 @@ async with AsyncCendry() as ctx:
         batch.delete(city2)
 ```
 
+## Optimistic locking
+
+Prevent conflicting writes with `if_unchanged` — Cendry checks the document hasn't been modified since you read it:
+
+```python
+from cendry import get_metadata
+
+city = ctx.get(City, "SF")
+
+# ... time passes, another client might modify the doc ...
+
+# This fails if the document changed since we read it
+ctx.update(city, {"population": 900_000}, if_unchanged=True)
+ctx.delete(city, if_unchanged=True)
+```
+
+Under the hood, Cendry tracks Firestore's `update_time` metadata automatically on every read and write. `if_unchanged=True` passes a precondition to Firestore — the write is rejected atomically if the document changed.
+
+!!! tip "Check metadata"
+    Use `get_metadata(instance)` to inspect `update_time` and `create_time`:
+    ```python
+    meta = get_metadata(city)
+    print(meta.update_time)  # datetime from Firestore
+    ```
+
+!!! warning "Batch writes don't track metadata"
+    Batch operations don't populate metadata. Refresh instances after a batch if you need optimistic locking:
+    ```python
+    with ctx.batch() as batch:
+        batch.save(city1)
+        batch.save(city2)
+
+    ctx.refresh(city1)  # now metadata is available
+    ctx.refresh(city2)
+    ctx.update(city1, {"population": 900_000}, if_unchanged=True)
+    ```
+
+### Class+ID form
+
+When using the class+ID form (no instance), pass a `datetime` directly:
+
+```python
+import datetime
+
+ctx.update(City, "SF", {"population": 900_000}, if_unchanged=some_datetime)
+ctx.delete(City, "SF", if_unchanged=some_datetime)
+```
+
 ## Subcollections
 
 All write operations support `parent=` for subcollections:
