@@ -42,6 +42,7 @@ dev = [
     "ruff>=0.11",
     "zensical",
     "mkdocstrings[python]>=0.27",
+    "testcontainers",
 ]
 
 [build-system]
