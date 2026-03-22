@@ -1,6 +1,6 @@
 # Write, Update, and Delete
 
-Save, create, update, delete, batch, and transact — everything you need to write data.
+Single-document operations: save, create, update, delete, refresh, and optimistic locking.
 
 ---
 
@@ -78,95 +78,6 @@ ctx.refresh(city)
 print(city.population)  # updated value from Firestore
 ```
 
-## Batch writes
-
-Atomic multi-document writes (max 500 operations):
-
-```python
-# Convenience methods
-ctx.save_many([city1, city2, city3])
-ctx.delete_many([city1, city2])
-ctx.delete_many(City, ["SF", "LA"])
-
-# Full control with batch context manager
-with ctx.batch() as batch:
-    batch.save(city1)
-    batch.create(city2)
-    batch.update(city3, {"population": 1_000_000})
-    batch.delete(city4)
-# auto-commits on exit, discards on exception
-```
-
-!!! tip
-    `save_many` and `delete_many` raise `CendryError` if more than 500 items are passed. Split large batches yourself to control atomicity boundaries.
-
-## Transactions
-
-Read-then-write atomicity with automatic retry on contention:
-
-### Callback pattern (recommended)
-
-```python
-def transfer(txn):
-    from_city = txn.get(City, "SF")
-    to_city = txn.get(City, "LA")
-    txn.update(from_city, {"population": from_city.population - 1000})
-    txn.update(to_city, {"population": to_city.population + 1000})
-
-ctx.transaction(transfer)
-ctx.transaction(transfer, max_attempts=10)
-```
-
-The callback is retried automatically on contention (up to `max_attempts`, default 5).
-
-### Context manager (single attempt)
-
-```python
-with ctx.transaction() as txn:
-    city = txn.get(City, "SF")
-    txn.update(city, {"population": city.population + 1000})
-```
-
-!!! warning
-    The context manager does **not** retry on contention. Use the callback pattern for critical operations.
-
-### Transaction reads
-
-Reads inside a transaction see a consistent snapshot:
-
-```python
-def my_txn(txn):
-    city = txn.get(City, "SF")        # raises DocumentNotFoundError
-    city = txn.find(City, "SF")       # returns None if missing
-```
-
-## Async
-
-All write operations have async equivalents:
-
-```python
-async with AsyncCendry() as ctx:
-    await ctx.save(city)
-    await ctx.create(city)
-    await ctx.update(city, {"population": 900_000})
-    await ctx.delete(city)
-    await ctx.refresh(city)
-    await ctx.save_many([city1, city2])
-    await ctx.delete_many([city1, city2])
-
-    # Async transaction
-    async def transfer(txn):
-        city = await txn.get(City, "SF")
-        txn.update(city, {"population": city.population + 1000})
-
-    await ctx.transaction(transfer)
-
-    # Async batch
-    async with ctx.batch() as batch:
-        batch.save(city1)
-        batch.delete(city2)
-```
-
 ## Optimistic locking
 
 Prevent conflicting writes with `if_unchanged` — Cendry checks the document hasn't been modified since you read it:
@@ -192,18 +103,6 @@ Under the hood, Cendry tracks Firestore's `update_time` metadata automatically o
     print(meta.update_time)  # datetime from Firestore
     ```
 
-!!! warning "Batch writes don't track metadata"
-    Batch operations don't populate metadata. Refresh instances after a batch if you need optimistic locking:
-    ```python
-    with ctx.batch() as batch:
-        batch.save(city1)
-        batch.save(city2)
-
-    ctx.refresh(city1)  # now metadata is available
-    ctx.refresh(city2)
-    ctx.update(city1, {"population": 900_000}, if_unchanged=True)
-    ```
-
 ### Class+ID form
 
 When using the class+ID form (no instance), pass a `datetime` directly:
@@ -217,11 +116,23 @@ ctx.delete(City, "SF", if_unchanged=some_datetime)
 
 ## Subcollections
 
-All write operations support `parent=` for subcollections:
+All single-document write operations support `parent=` for subcollections:
 
 ```python
 ctx.save(neighborhood, parent=city)
 ctx.update(neighborhood, {"population": 65_000}, parent=city)
 ctx.delete(neighborhood, parent=city)
-ctx.save_many([nb1, nb2], parent=city)
+```
+
+## Async
+
+All operations have async equivalents:
+
+```python
+async with AsyncCendry() as ctx:
+    await ctx.save(city)
+    await ctx.create(city)
+    await ctx.update(city, {"population": 900_000})
+    await ctx.delete(city)
+    await ctx.refresh(city)
 ```

@@ -8,7 +8,10 @@ Practical recipes for specific tasks. Each guide is self-contained — jump to w
 :   Models, Maps, fields, defaults, enums, inheritance.
 
 **[Write, Update, and Delete](writing.md)**
-:   Save, create, update, delete, batch writes, transactions.
+:   Save, create, update, delete, refresh, optimistic locking.
+
+**[Batch Writes and Transactions](batch-and-transactions.md)**
+:   Atomic multi-document writes, save_many/delete_many, transactions.
 
 **[Filter and Query](filtering.md)**
 :   Operators, composition, chainable queries, operator reference table.
