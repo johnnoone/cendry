@@ -1399,3 +1399,136 @@ async def test_async_refresh_missing_doc_raises(mock_firestore_client: MagicMock
     ctx = AsyncCendry(client=mock_firestore_client)
     with pytest.raises(DocumentNotFoundError):
         await ctx.refresh(city)
+
+
+# --- batch() ---
+
+
+def test_batch_returns_batch(mock_firestore_client: MagicMock):
+    from cendry.batch import Batch
+
+    ctx = Cendry(client=mock_firestore_client)
+    b = ctx.batch()
+    assert isinstance(b, Batch)
+
+
+def test_batch_context_manager_commits(mock_firestore_client: MagicMock):
+    ctx = Cendry(client=mock_firestore_client)
+    with ctx.batch() as batch:
+        batch.save(City(**SF_DATA, id="SF"))
+    mock_firestore_client.batch.return_value.commit.assert_called_once()
+
+
+# --- save_many ---
+
+
+def test_save_many(mock_firestore_client: MagicMock):
+    cities = [City(**SF_DATA, id=f"city-{i}") for i in range(3)]
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.save_many(cities)
+    assert mock_firestore_client.batch.return_value.set.call_count == 3
+    mock_firestore_client.batch.return_value.commit.assert_called_once()
+
+
+def test_save_many_over_500_raises(mock_firestore_client: MagicMock):
+    cities = [City(**SF_DATA, id=f"city-{i}") for i in range(501)]
+    ctx = Cendry(client=mock_firestore_client)
+    with pytest.raises(CendryError, match="Batch limit exceeded: 501 items, maximum is 500"):
+        ctx.save_many(cities)
+
+
+def test_save_many_with_parent(mock_firestore_client: MagicMock):
+    parent = City(**SF_DATA, id="SF")
+    neighborhoods = [
+        Neighborhood(name=f"nb-{i}", population=1000, id=f"nb-{i}") for i in range(2)
+    ]
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.save_many(neighborhoods, parent=parent)
+    assert mock_firestore_client.batch.return_value.set.call_count == 2
+
+
+def test_save_many_validates_required_fields(mock_firestore_client: MagicMock):
+    cities = [
+        City(**SF_DATA, id="ok"),
+        City(name=None, state="CA", country="USA", capital=False, population=0, regions=[]),
+    ]
+    ctx = Cendry(client=mock_firestore_client)
+    with pytest.raises(CendryError, match="Required fields are None"):
+        ctx.save_many(cities)
+
+
+# --- delete_many ---
+
+
+def test_delete_many_by_instances(mock_firestore_client: MagicMock):
+    cities = [City(**SF_DATA, id=f"city-{i}") for i in range(3)]
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.delete_many(cities)
+    assert mock_firestore_client.batch.return_value.delete.call_count == 3
+    mock_firestore_client.batch.return_value.commit.assert_called_once()
+
+
+def test_delete_many_by_class_and_ids(mock_firestore_client: MagicMock):
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.delete_many(City, ["SF", "LA", "NYC"])
+    assert mock_firestore_client.batch.return_value.delete.call_count == 3
+
+
+def test_delete_many_over_500_raises(mock_firestore_client: MagicMock):
+    cities = [City(**SF_DATA, id=f"city-{i}") for i in range(501)]
+    ctx = Cendry(client=mock_firestore_client)
+    with pytest.raises(CendryError, match="Batch limit exceeded"):
+        ctx.delete_many(cities)
+
+
+def test_delete_many_instance_no_id_raises(mock_firestore_client: MagicMock):
+    cities = [City(**SF_DATA, id="ok"), City(**SF_DATA)]
+    ctx = Cendry(client=mock_firestore_client)
+    with pytest.raises(CendryError, match="Cannot delete a model instance with id=None"):
+        ctx.delete_many(cities)
+
+
+# --- async batch ---
+
+
+@pytest.mark.anyio
+async def test_async_batch_context_manager_commits(mock_firestore_client: MagicMock):
+    mock_firestore_client.batch.return_value.commit = AsyncMock()
+    ctx = AsyncCendry(client=mock_firestore_client)
+    async with ctx.batch() as batch:
+        batch.save(City(**SF_DATA, id="SF"))
+    mock_firestore_client.batch.return_value.commit.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_async_save_many(mock_firestore_client: MagicMock):
+    mock_firestore_client.batch.return_value.commit = AsyncMock()
+    cities = [City(**SF_DATA, id=f"city-{i}") for i in range(3)]
+    ctx = AsyncCendry(client=mock_firestore_client)
+    await ctx.save_many(cities)
+    assert mock_firestore_client.batch.return_value.set.call_count == 3
+
+
+@pytest.mark.anyio
+async def test_async_save_many_over_500_raises(mock_firestore_client: MagicMock):
+    cities = [City(**SF_DATA, id=f"city-{i}") for i in range(501)]
+    ctx = AsyncCendry(client=mock_firestore_client)
+    with pytest.raises(CendryError, match="Batch limit exceeded"):
+        await ctx.save_many(cities)
+
+
+@pytest.mark.anyio
+async def test_async_delete_many_by_instances(mock_firestore_client: MagicMock):
+    mock_firestore_client.batch.return_value.commit = AsyncMock()
+    cities = [City(**SF_DATA, id=f"city-{i}") for i in range(3)]
+    ctx = AsyncCendry(client=mock_firestore_client)
+    await ctx.delete_many(cities)
+    assert mock_firestore_client.batch.return_value.delete.call_count == 3
+
+
+@pytest.mark.anyio
+async def test_async_delete_many_by_class_and_ids(mock_firestore_client: MagicMock):
+    mock_firestore_client.batch.return_value.commit = AsyncMock()
+    ctx = AsyncCendry(client=mock_firestore_client)
+    await ctx.delete_many(City, ["SF", "LA", "NYC"])
+    assert mock_firestore_client.batch.return_value.delete.call_count == 3

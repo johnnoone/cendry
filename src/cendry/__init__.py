@@ -10,6 +10,7 @@ from google.cloud.firestore import (
     Minimum,
 )
 
+from .batch import AsyncBatch, Batch
 from .context import AsyncCendry, Cendry
 from .exceptions import CendryError, DocumentAlreadyExistsError, DocumentNotFoundError
 from .filters import And, FieldFilter, Or
@@ -25,8 +26,10 @@ __all__ = [
     "ArrayRemove",
     "ArrayUnion",
     "Asc",
+    "AsyncBatch",
     "AsyncCendry",
     "AsyncQuery",
+    "Batch",
     "BaseTypeHandler",
     "Cendry",
     "CendryError",
