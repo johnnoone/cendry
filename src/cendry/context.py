@@ -15,6 +15,7 @@ from google.cloud.firestore_v1.base_query import Or as FsOr
 
 from .exceptions import CendryError, DocumentAlreadyExistsError, DocumentNotFoundError
 from .filters import And, Or
+from .metadata import _clear_metadata, _set_metadata
 from .model import FieldFilterResult, Model
 from .query import AsyncQuery, Query
 from .serialize import (
@@ -167,7 +168,9 @@ class Cendry(_BaseCendry):
         doc = col_ref.document(document_id).get()
         if not doc.exists:
             raise DocumentNotFoundError(model_class.__collection__, document_id)
-        return deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+        result = deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+        _set_metadata(result, update_time=doc.update_time, create_time=doc.create_time)
+        return result
 
     def find(
         self, model_class: type[T], document_id: str, *, parent: Model | None = None
@@ -186,7 +189,9 @@ class Cendry(_BaseCendry):
         doc = col_ref.document(document_id).get()
         if not doc.exists:
             return None
-        return deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+        result = deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+        _set_metadata(result, update_time=doc.update_time, create_time=doc.create_time)
+        return result
 
     def get_many(
         self,
@@ -216,9 +221,11 @@ class Cendry(_BaseCendry):
             if not doc.exists:
                 missing.append(doc.id)
             else:
-                results.append(
-                    deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+                instance = deserialize(
+                    model_class, doc.id, doc.to_dict(), registry=self.type_registry
                 )
+                _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
+                results.append(instance)
         if missing:
             raise DocumentNotFoundError(model_class.__collection__, ", ".join(missing))
         return results
@@ -288,9 +295,10 @@ class Cendry(_BaseCendry):
         col_ref = self._get_collection_ref(type(instance), parent)
         is_new = instance.id is None
         doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
-        doc_ref.set(to_dict(instance, by_alias=True, registry=self.type_registry))
+        write_result = doc_ref.set(to_dict(instance, by_alias=True, registry=self.type_registry))
         if is_new:
             instance.id = doc_ref.id
+        _set_metadata(instance, update_time=write_result.update_time)
         return doc_ref.id  # type: ignore[no-any-return]
 
     def create(self, instance: T, *, parent: Model | None = None) -> str:
@@ -311,11 +319,14 @@ class Cendry(_BaseCendry):
         is_new = instance.id is None
         doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
         try:
-            doc_ref.create(to_dict(instance, by_alias=True, registry=self.type_registry))
+            write_result = doc_ref.create(
+                to_dict(instance, by_alias=True, registry=self.type_registry)
+            )
         except Conflict as e:
             raise DocumentAlreadyExistsError(type(instance).__collection__, doc_ref.id) from e
         if is_new:
             instance.id = doc_ref.id
+        _set_metadata(instance, update_time=write_result.update_time)
         return doc_ref.id  # type: ignore[no-any-return]
 
     @overload
@@ -351,6 +362,7 @@ class Cendry(_BaseCendry):
                 raise CendryError("Cannot delete a model instance with id=None")
             col_ref = self._get_collection_ref(type(instance_or_class), parent)
             col_ref.document(instance_or_class.id).delete()
+            _clear_metadata(instance_or_class)
         else:
             if doc_id is None:  # pragma: no cover
                 raise CendryError("doc_id is required when calling delete with a class")
@@ -417,9 +429,11 @@ class Cendry(_BaseCendry):
         }
         col_ref = self._get_collection_ref(model_class, parent)
         try:
-            col_ref.document(doc_id).update(resolved)
+            write_result = col_ref.document(doc_id).update(resolved)
         except NotFound as e:
             raise DocumentNotFoundError(model_class.__collection__, doc_id) from e
+        if isinstance(instance_or_class, Model):
+            _set_metadata(instance_or_class, update_time=write_result.update_time)
 
     def refresh(self, instance: T, *, parent: Model | None = None) -> None:
         """Re-fetch a document from Firestore and update the instance in-place.
@@ -440,6 +454,8 @@ class Cendry(_BaseCendry):
         fresh = deserialize(type(instance), doc.id, doc.to_dict(), registry=self.type_registry)
         for f in dataclasses.fields(instance):
             setattr(instance, f.name, getattr(fresh, f.name))
+        _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
+        _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
 
     def batch(self) -> "Batch":
         """Create a batch writer for atomic multi-document operations."""
@@ -582,7 +598,9 @@ class AsyncCendry(_BaseCendry):
         doc = await col_ref.document(document_id).get()
         if not doc.exists:
             raise DocumentNotFoundError(model_class.__collection__, document_id)
-        return deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+        result = deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+        _set_metadata(result, update_time=doc.update_time, create_time=doc.create_time)
+        return result
 
     async def find(
         self, model_class: type[T], document_id: str, *, parent: Model | None = None
@@ -592,7 +610,9 @@ class AsyncCendry(_BaseCendry):
         doc = await col_ref.document(document_id).get()
         if not doc.exists:
             return None
-        return deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+        result = deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+        _set_metadata(result, update_time=doc.update_time, create_time=doc.create_time)
+        return result
 
     async def get_many(
         self,
@@ -622,9 +642,11 @@ class AsyncCendry(_BaseCendry):
             if not doc.exists:
                 missing.append(doc.id)
             else:
-                results.append(
-                    deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+                instance = deserialize(
+                    model_class, doc.id, doc.to_dict(), registry=self.type_registry
                 )
+                _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
+                results.append(instance)
         if missing:
             raise DocumentNotFoundError(model_class.__collection__, ", ".join(missing))
         return results
@@ -686,9 +708,12 @@ class AsyncCendry(_BaseCendry):
         col_ref = self._get_collection_ref(type(instance), parent)
         is_new = instance.id is None
         doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
-        await doc_ref.set(to_dict(instance, by_alias=True, registry=self.type_registry))
+        write_result = await doc_ref.set(
+            to_dict(instance, by_alias=True, registry=self.type_registry)
+        )
         if is_new:
             instance.id = doc_ref.id
+        _set_metadata(instance, update_time=write_result.update_time)
         return doc_ref.id  # type: ignore[no-any-return]
 
     async def create(self, instance: T, *, parent: Model | None = None) -> str:
@@ -698,11 +723,14 @@ class AsyncCendry(_BaseCendry):
         is_new = instance.id is None
         doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
         try:
-            await doc_ref.create(to_dict(instance, by_alias=True, registry=self.type_registry))
+            write_result = await doc_ref.create(
+                to_dict(instance, by_alias=True, registry=self.type_registry)
+            )
         except Conflict as e:
             raise DocumentAlreadyExistsError(type(instance).__collection__, doc_ref.id) from e
         if is_new:
             instance.id = doc_ref.id
+        _set_metadata(instance, update_time=write_result.update_time)
         return doc_ref.id  # type: ignore[no-any-return]
 
     @overload
@@ -731,6 +759,7 @@ class AsyncCendry(_BaseCendry):
                 raise CendryError("Cannot delete a model instance with id=None")
             col_ref = self._get_collection_ref(type(instance_or_class), parent)
             await col_ref.document(instance_or_class.id).delete()
+            _clear_metadata(instance_or_class)
         else:
             if doc_id is None:  # pragma: no cover
                 raise CendryError("doc_id is required when calling delete with a class")
@@ -787,9 +816,11 @@ class AsyncCendry(_BaseCendry):
         }
         col_ref = self._get_collection_ref(model_class, parent)
         try:
-            await col_ref.document(doc_id).update(resolved)
+            write_result = await col_ref.document(doc_id).update(resolved)
         except NotFound as e:
             raise DocumentNotFoundError(model_class.__collection__, doc_id) from e
+        if isinstance(instance_or_class, Model):
+            _set_metadata(instance_or_class, update_time=write_result.update_time)
 
     async def refresh(self, instance: T, *, parent: Model | None = None) -> None:
         """Re-fetch a document from Firestore and update the instance in-place."""
@@ -802,6 +833,7 @@ class AsyncCendry(_BaseCendry):
         fresh = deserialize(type(instance), doc.id, doc.to_dict(), registry=self.type_registry)
         for f in dataclasses.fields(instance):
             setattr(instance, f.name, getattr(fresh, f.name))
+        _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
 
     def batch(self) -> "AsyncBatch":
         """Create an async batch writer for atomic multi-document operations."""

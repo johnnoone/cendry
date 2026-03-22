@@ -1596,3 +1596,96 @@ async def test_async_transaction_context_manager_rollback(mock_firestore_client:
 
     fs_txn._begin.assert_called_once()
     fs_txn._rollback.assert_called_once()
+
+
+# --- metadata population ---
+
+
+def test_get_populates_metadata(mock_firestore_client: MagicMock):
+    import datetime
+
+    from cendry.metadata import get_metadata
+
+    doc = make_mock_document("SF", SF_DATA)
+    doc.update_time = datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
+    doc.create_time = datetime.datetime(2025, 6, 1, tzinfo=datetime.UTC)
+    mock_firestore_client.collection.return_value.document.return_value.get.return_value = doc
+
+    ctx = Cendry(client=mock_firestore_client)
+    city = ctx.get(City, "SF")
+
+    meta = get_metadata(city)
+    assert meta.update_time == datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
+    assert meta.create_time == datetime.datetime(2025, 6, 1, tzinfo=datetime.UTC)
+
+
+def test_save_populates_metadata(mock_firestore_client: MagicMock):
+    import datetime
+
+    from cendry.metadata import get_metadata
+
+    write_result = MagicMock()
+    write_result.update_time = datetime.datetime(2026, 3, 22, tzinfo=datetime.UTC)
+    mock_firestore_client.collection.return_value.document.return_value.set.return_value = (
+        write_result
+    )
+
+    ctx = Cendry(client=mock_firestore_client)
+    city = City(**SF_DATA, id="SF")
+    ctx.save(city)
+
+    meta = get_metadata(city)
+    assert meta.update_time == datetime.datetime(2026, 3, 22, tzinfo=datetime.UTC)
+
+
+def test_delete_clears_metadata(mock_firestore_client: MagicMock):
+    import datetime
+
+    from cendry.metadata import _set_metadata, get_metadata
+
+    city = City(**SF_DATA, id="SF")
+    _set_metadata(city, update_time=datetime.datetime.now(tz=datetime.UTC))
+
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.delete(city)
+
+    with pytest.raises(CendryError, match="No metadata"):
+        get_metadata(city)
+
+
+def test_update_populates_metadata(mock_firestore_client: MagicMock):
+    import datetime
+
+    from cendry.metadata import get_metadata
+
+    write_result = MagicMock()
+    write_result.update_time = datetime.datetime(2026, 3, 22, tzinfo=datetime.UTC)
+    mock_firestore_client.collection.return_value.document.return_value.update.return_value = (
+        write_result
+    )
+
+    ctx = Cendry(client=mock_firestore_client)
+    city = City(**SF_DATA, id="SF")
+    ctx.update(city, {"population": 900_000})
+
+    meta = get_metadata(city)
+    assert meta.update_time == datetime.datetime(2026, 3, 22, tzinfo=datetime.UTC)
+
+
+def test_refresh_populates_metadata(mock_firestore_client: MagicMock):
+    import datetime
+
+    from cendry.metadata import get_metadata
+
+    doc = make_mock_document("SF", SF_DATA)
+    doc.update_time = datetime.datetime(2026, 3, 22, tzinfo=datetime.UTC)
+    doc.create_time = datetime.datetime(2025, 1, 1, tzinfo=datetime.UTC)
+    mock_firestore_client.collection.return_value.document.return_value.get.return_value = doc
+
+    ctx = Cendry(client=mock_firestore_client)
+    city = City(**SF_DATA, id="SF")
+    ctx.refresh(city)
+
+    meta = get_metadata(city)
+    assert meta.update_time == datetime.datetime(2026, 3, 22, tzinfo=datetime.UTC)
+    assert meta.create_time == datetime.datetime(2025, 1, 1, tzinfo=datetime.UTC)
