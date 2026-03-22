@@ -12,6 +12,7 @@ from google.cloud.firestore import (
 
 from .batch import AsyncBatch, Batch
 from .context import AsyncCendry, Cendry
+from .transaction import AsyncTxn, Txn
 from .exceptions import CendryError, DocumentAlreadyExistsError, DocumentNotFoundError
 from .filters import And, FieldFilter, Or
 from .model import Field, FieldDescriptor, Map, Model, field
@@ -29,6 +30,7 @@ __all__ = [
     "AsyncBatch",
     "AsyncCendry",
     "AsyncQuery",
+    "AsyncTxn",
     "BaseTypeHandler",
     "Batch",
     "Cendry",
@@ -46,6 +48,7 @@ __all__ = [
     "Model",
     "Or",
     "Query",
+    "Txn",
     "TypeHandler",
     "TypeRegistry",
     "field",

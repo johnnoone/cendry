@@ -1,8 +1,11 @@
 import dataclasses
 from typing import TYPE_CHECKING, Any, Self, TypeVar, overload
 
+from collections.abc import Callable
+
 if TYPE_CHECKING:
     from .batch import AsyncBatch, Batch
+    from .transaction import AsyncTxn, Txn
 
 from google.api_core.exceptions import NotFound
 from google.cloud.exceptions import Conflict
@@ -491,6 +494,52 @@ class Cendry(_BaseCendry):
                 for doc_id in doc_ids:
                     b.delete(instances_or_class, doc_id, parent=parent)
 
+    @overload
+    def transaction(
+        self,
+        fn: Callable[["Txn"], Any],
+        *,
+        max_attempts: int = 5,
+        read_only: bool = False,
+    ) -> Any: ...
+    @overload
+    def transaction(
+        self,
+        fn: None = None,
+        *,
+        max_attempts: int = 5,
+        read_only: bool = False,
+    ) -> "Txn": ...
+
+    def transaction(  # type: ignore[misc]
+        self,
+        fn: Callable[["Txn"], Any] | None = None,
+        *,
+        max_attempts: int = 5,
+        read_only: bool = False,
+    ) -> Any:
+        """Run a transaction with callback (auto-retry) or context manager (single attempt).
+
+        Args:
+            fn: Callback receiving a Txn. If None, returns a context manager.
+            max_attempts: Max retry attempts on contention (callback form only).
+            read_only: If True, no writes allowed.
+        """
+        from google.cloud.firestore_v1.transaction import transactional
+
+        from .transaction import Txn
+
+        fs_txn = self._client.transaction(max_attempts=max_attempts, read_only=read_only)
+        txn = Txn(fs_txn, self._get_collection_ref, self.type_registry)
+        if fn is None:
+            return txn
+
+        @transactional
+        def _run(transaction: Any) -> Any:
+            return fn(txn)
+
+        return _run(fs_txn)
+
 
 class AsyncCendry(_BaseCendry):
     """Asynchronous Firestore ODM context.
@@ -801,3 +850,52 @@ class AsyncCendry(_BaseCendry):
             async with self.batch() as b:
                 for doc_id in doc_ids:
                     b.delete(instances_or_class, doc_id, parent=parent)
+
+    @overload
+    async def transaction(
+        self,
+        fn: Callable[["AsyncTxn"], Any],
+        *,
+        max_attempts: int = 5,
+        read_only: bool = False,
+    ) -> Any: ...
+    @overload
+    def transaction(
+        self,
+        fn: None = None,
+        *,
+        max_attempts: int = 5,
+        read_only: bool = False,
+    ) -> "AsyncTxn": ...
+
+    def transaction(  # type: ignore[misc]
+        self,
+        fn: Callable[["AsyncTxn"], Any] | None = None,
+        *,
+        max_attempts: int = 5,
+        read_only: bool = False,
+    ) -> Any:
+        """Run a transaction with callback (auto-retry) or context manager (single attempt).
+
+        Args:
+            fn: Async callback receiving an AsyncTxn. If None, returns a context manager.
+            max_attempts: Max retry attempts on contention (callback form only).
+            read_only: If True, no writes allowed.
+        """
+        from .transaction import AsyncTxn
+
+        fs_txn = self._client.transaction(max_attempts=max_attempts, read_only=read_only)
+        txn = AsyncTxn(fs_txn, self._get_collection_ref, self.type_registry)
+        if fn is None:
+            return txn
+
+        from google.cloud.firestore_v1.async_transaction import async_transactional
+
+        @async_transactional
+        async def _run(transaction: Any) -> Any:
+            return await fn(txn)
+
+        async def _execute() -> Any:
+            return await _run(fs_txn)
+
+        return _execute()
