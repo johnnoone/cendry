@@ -13,28 +13,40 @@
   --md-primary-fg-color: #9E1201;
   --md-primary-fg-color--light: #FD9212;
   --md-primary-fg-color--dark: #7A0E01;
-  --md-primary-bg-color: #FDF2B4;
+  --md-primary-bg-color: #ffffff;
   --md-primary-bg-color--light: #FDF2B4;
 
-  --md-accent-fg-color: #FFB526;
-  --md-accent-fg-color--transparent: rgba(255, 181, 38, 0.1);
+  --md-accent-fg-color: #FD9212;
+  --md-accent-fg-color--transparent: rgba(253, 146, 18, 0.1);
   --md-accent-bg-color: #FDF2B4;
 
-  /* Header gradient — ember to deep orange */
   --md-typeset-a-color: #9E1201;
-
-  /* Admonition accents */
-  --md-admonition-fg-color: #3a3a3a;
 }
 
-/* Header background */
+/* Header — ember red background, white text */
 [data-md-color-scheme="default"] .md-header {
   background-color: #9E1201;
+  color: #ffffff;
 }
 
-/* Tabs */
+[data-md-color-scheme="default"] .md-header .md-header__title,
+[data-md-color-scheme="default"] .md-header .md-header__topic,
+[data-md-color-scheme="default"] .md-header a {
+  color: #ffffff;
+}
+
+/* Tabs — darker ember */
 [data-md-color-scheme="default"] .md-tabs {
   background-color: #7A0E01;
+  color: #FDF2B4;
+}
+
+[data-md-color-scheme="default"] .md-tabs a {
+  color: #FDF2B4;
+}
+
+[data-md-color-scheme="default"] .md-tabs a:hover {
+  color: #ffffff;
 }
 
 /* ---- Dark mode ---- */
@@ -51,10 +63,27 @@
   --md-typeset-a-color: #FD9212;
 }
 
+/* Header — dark with orange text */
 [data-md-color-scheme="slate"] .md-header {
   background-color: #2a1a0a;
+  color: #FDE492;
+}
+
+[data-md-color-scheme="slate"] .md-header .md-header__title,
+[data-md-color-scheme="slate"] .md-header .md-header__topic,
+[data-md-color-scheme="slate"] .md-header a {
+  color: #FDE492;
 }
 
 [data-md-color-scheme="slate"] .md-tabs {
   background-color: #1a0f05;
+  color: #FD9212;
+}
+
+[data-md-color-scheme="slate"] .md-tabs a {
+  color: #FD9212;
+}
+
+[data-md-color-scheme="slate"] .md-tabs a:hover {
+  color: #FFB526;
 }
