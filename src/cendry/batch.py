@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Any, TypeVar, overload
+from typing import Any, Self, TypeVar, overload
 
 from .exceptions import CendryError
 from .model import Model
@@ -30,10 +30,10 @@ class Batch:
         self._get_collection_ref = get_collection_ref
         self._registry = registry
 
-    def __enter__(self) -> "Batch":
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type: type | None, *args: object) -> None:
+    def __exit__(self, exc_type: type[BaseException] | None, *args: object) -> None:
         if exc_type is None:
             self._batch.commit()
 
@@ -92,9 +92,7 @@ class Batch:
             assert field_updates is not None
 
         resolved = {
-            resolve_field_path(model_class, k): serialize_update_value(
-                v, registry=self._registry
-            )
+            resolve_field_path(model_class, k): serialize_update_value(v, registry=self._registry)
             for k, v in field_updates.items()
         }
         col_ref = self._get_collection_ref(model_class, parent)
@@ -142,10 +140,10 @@ class AsyncBatch:
         self._get_collection_ref = get_collection_ref
         self._registry = registry
 
-    async def __aenter__(self) -> "AsyncBatch":
+    async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, exc_type: type | None, *args: object) -> None:
+    async def __aexit__(self, exc_type: type[BaseException] | None, *args: object) -> None:
         if exc_type is None:
             await self._batch.commit()
 
@@ -204,9 +202,7 @@ class AsyncBatch:
             assert field_updates is not None
 
         resolved = {
-            resolve_field_path(model_class, k): serialize_update_value(
-                v, registry=self._registry
-            )
+            resolve_field_path(model_class, k): serialize_update_value(v, registry=self._registry)
             for k, v in field_updates.items()
         }
         col_ref = self._get_collection_ref(model_class, parent)

@@ -1,5 +1,8 @@
 import dataclasses
-from typing import Any, Self, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Self, TypeVar, overload
+
+if TYPE_CHECKING:
+    from .batch import AsyncBatch, Batch
 
 from google.api_core.exceptions import NotFound
 from google.cloud.exceptions import Conflict
@@ -448,17 +451,13 @@ class Cendry(_BaseCendry):
             CendryError: If more than 500 items or validation fails.
         """
         if len(instances) > 500:
-            raise CendryError(
-                f"Batch limit exceeded: {len(instances)} items, maximum is 500"
-            )
+            raise CendryError(f"Batch limit exceeded: {len(instances)} items, maximum is 500")
         with self.batch() as b:
             for instance in instances:
                 b.save(instance, parent=parent)
 
     @overload
-    def delete_many(
-        self, instances: list[Model], *, parent: Model | None = None
-    ) -> None: ...
+    def delete_many(self, instances: list[Model], *, parent: Model | None = None) -> None: ...
     @overload
     def delete_many(
         self,
@@ -487,9 +486,7 @@ class Cendry(_BaseCendry):
         else:
             assert doc_ids is not None
             if len(doc_ids) > 500:
-                raise CendryError(
-                    f"Batch limit exceeded: {len(doc_ids)} items, maximum is 500"
-                )
+                raise CendryError(f"Batch limit exceeded: {len(doc_ids)} items, maximum is 500")
             with self.batch() as b:
                 for doc_id in doc_ids:
                     b.delete(instances_or_class, doc_id, parent=parent)
@@ -763,9 +760,7 @@ class AsyncCendry(_BaseCendry):
     async def save_many(self, instances: list[T], *, parent: Model | None = None) -> None:
         """Save multiple documents atomically. Max 500 items."""
         if len(instances) > 500:
-            raise CendryError(
-                f"Batch limit exceeded: {len(instances)} items, maximum is 500"
-            )
+            raise CendryError(f"Batch limit exceeded: {len(instances)} items, maximum is 500")
         async with self.batch() as b:
             for instance in instances:
                 b.save(instance, parent=parent)
@@ -802,9 +797,7 @@ class AsyncCendry(_BaseCendry):
         else:
             assert doc_ids is not None
             if len(doc_ids) > 500:
-                raise CendryError(
-                    f"Batch limit exceeded: {len(doc_ids)} items, maximum is 500"
-                )
+                raise CendryError(f"Batch limit exceeded: {len(doc_ids)} items, maximum is 500")
             async with self.batch() as b:
                 for doc_id in doc_ids:
                     b.delete(instances_or_class, doc_id, parent=parent)

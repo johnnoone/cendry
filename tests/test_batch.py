@@ -2,10 +2,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cendry import CendryError, Field, Model
+from cendry import CendryError
 from cendry.batch import AsyncBatch, Batch
 from cendry.types import default_registry
-from tests.conftest import SF_DATA, City, Neighborhood
+from tests.conftest import SF_DATA, City
 
 
 def make_batch_and_client():
@@ -26,7 +26,7 @@ def make_batch_and_client():
 
 
 def test_batch_save_explicit_id():
-    batch, fs_batch, client = make_batch_and_client()
+    batch, fs_batch, _client = make_batch_and_client()
     city = City(**SF_DATA, id="SF")
 
     batch.save(city)
@@ -48,7 +48,7 @@ def test_batch_save_auto_id():
 
 
 def test_batch_save_validates_required_fields():
-    batch, fs_batch, client = make_batch_and_client()
+    batch, _fs_batch, _client = make_batch_and_client()
     city = City(
         name=None,
         state="CA",
@@ -66,7 +66,7 @@ def test_batch_save_validates_required_fields():
 
 
 def test_batch_create():
-    batch, fs_batch, client = make_batch_and_client()
+    batch, fs_batch, _client = make_batch_and_client()
     city = City(**SF_DATA, id="SF")
 
     batch.create(city)
@@ -75,7 +75,7 @@ def test_batch_create():
 
 
 def test_batch_create_auto_id():
-    batch, fs_batch, client = make_batch_and_client()
+    batch, _fs_batch, client = make_batch_and_client()
     city = City(**SF_DATA)  # id=None
 
     doc_ref = client.collection.return_value.document.return_value
@@ -90,7 +90,7 @@ def test_batch_create_auto_id():
 
 
 def test_batch_update_by_instance():
-    batch, fs_batch, client = make_batch_and_client()
+    batch, fs_batch, _client = make_batch_and_client()
     city = City(**SF_DATA, id="SF")
 
     batch.update(city, {"name": "New Name"})
@@ -99,7 +99,7 @@ def test_batch_update_by_instance():
 
 
 def test_batch_update_by_class_and_id():
-    batch, fs_batch, client = make_batch_and_client()
+    batch, fs_batch, _client = make_batch_and_client()
 
     batch.update(City, "SF", {"name": "New Name"})
 
@@ -107,7 +107,7 @@ def test_batch_update_by_class_and_id():
 
 
 def test_batch_update_no_id_raises():
-    batch, fs_batch, client = make_batch_and_client()
+    batch, _fs_batch, _client = make_batch_and_client()
     city = City(**SF_DATA)  # id=None
 
     with pytest.raises(CendryError, match="Cannot update a model instance with id=None"):
@@ -118,7 +118,7 @@ def test_batch_update_no_id_raises():
 
 
 def test_batch_delete_by_instance():
-    batch, fs_batch, client = make_batch_and_client()
+    batch, fs_batch, _client = make_batch_and_client()
     city = City(**SF_DATA, id="SF")
 
     batch.delete(city)
@@ -127,7 +127,7 @@ def test_batch_delete_by_instance():
 
 
 def test_batch_delete_by_class_and_id():
-    batch, fs_batch, client = make_batch_and_client()
+    batch, fs_batch, _client = make_batch_and_client()
 
     batch.delete(City, "SF")
 
@@ -135,7 +135,7 @@ def test_batch_delete_by_class_and_id():
 
 
 def test_batch_delete_no_id_raises():
-    batch, fs_batch, client = make_batch_and_client()
+    batch, _fs_batch, _client = make_batch_and_client()
     city = City(**SF_DATA)  # id=None
 
     with pytest.raises(CendryError, match="Cannot delete a model instance with id=None"):
@@ -157,9 +157,8 @@ def test_batch_commits_on_exit():
 def test_batch_no_commit_on_exception():
     batch, fs_batch, _ = make_batch_and_client()
 
-    with pytest.raises(ValueError):
-        with batch:
-            raise ValueError("boom")
+    with pytest.raises(ValueError, match="boom"), batch:
+        raise ValueError("boom")
 
     fs_batch.commit.assert_not_called()
 
@@ -205,7 +204,7 @@ async def test_async_batch_commits_on_exit():
 async def test_async_batch_no_commit_on_exception():
     batch, fs_batch, _ = make_async_batch_and_client()
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="boom"):
         async with batch:
             raise ValueError("boom")
 
@@ -230,3 +229,73 @@ async def test_async_batch_update_by_instance():
     batch.update(city, {"name": "New"})
 
     fs_batch.update.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_async_batch_save_auto_id():
+    batch, _fs_batch, client = make_async_batch_and_client()
+    city = City(**SF_DATA)  # id=None
+    doc_ref = client.collection.return_value.document.return_value
+    doc_ref.id = "auto-async-123"
+
+    batch.save(city)
+
+    assert city.id == "auto-async-123"
+
+
+@pytest.mark.anyio
+async def test_async_batch_create():
+    batch, fs_batch, _ = make_async_batch_and_client()
+    city = City(**SF_DATA, id="SF")
+
+    batch.create(city)
+
+    fs_batch.create.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_async_batch_create_auto_id():
+    batch, _fs_batch, client = make_async_batch_and_client()
+    city = City(**SF_DATA)  # id=None
+    doc_ref = client.collection.return_value.document.return_value
+    doc_ref.id = "auto-async-456"
+
+    batch.create(city)
+
+    assert city.id == "auto-async-456"
+
+
+@pytest.mark.anyio
+async def test_async_batch_update_by_class_and_id():
+    batch, fs_batch, _ = make_async_batch_and_client()
+
+    batch.update(City, "SF", {"name": "New"})
+
+    fs_batch.update.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_async_batch_update_no_id_raises():
+    batch, _fs_batch, _ = make_async_batch_and_client()
+    city = City(**SF_DATA)  # id=None
+
+    with pytest.raises(CendryError, match="Cannot update a model instance with id=None"):
+        batch.update(city, {"name": "New"})
+
+
+@pytest.mark.anyio
+async def test_async_batch_delete_no_id_raises():
+    batch, _fs_batch, _ = make_async_batch_and_client()
+    city = City(**SF_DATA)  # id=None
+
+    with pytest.raises(CendryError, match="Cannot delete a model instance with id=None"):
+        batch.delete(city)
+
+
+@pytest.mark.anyio
+async def test_async_batch_delete_by_class_and_id():
+    batch, fs_batch, _ = make_async_batch_and_client()
+
+    batch.delete(City, "SF")
+
+    fs_batch.delete.assert_called_once()

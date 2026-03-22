@@ -314,8 +314,7 @@ def validate_required_fields(instance: Model) -> None:
         if f.name == "id":
             continue
         has_default = (
-            f.default is not dataclasses.MISSING
-            or f.default_factory is not dataclasses.MISSING
+            f.default is not dataclasses.MISSING or f.default_factory is not dataclasses.MISSING
         )
         if not has_default and getattr(instance, f.name) is None:
             missing.append(f.name)
