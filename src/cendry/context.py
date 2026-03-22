@@ -12,7 +12,13 @@ from .exceptions import CendryError, DocumentAlreadyExistsError, DocumentNotFoun
 from .filters import And, Or
 from .model import FieldFilterResult, Model
 from .query import AsyncQuery, Query
-from .serialize import deserialize, resolve_field_path, serialize_update_value, to_dict
+from .serialize import (
+    deserialize,
+    resolve_field_path,
+    serialize_update_value,
+    to_dict,
+    validate_required_fields,
+)
 from .types import TypeRegistry, default_registry
 
 T = TypeVar("T", bound=Model)
@@ -35,19 +41,7 @@ class _BaseCendry:
 
     def _validate_required_fields(self, instance: Model) -> None:
         """Raise CendryError if any required fields are None."""
-        missing = []
-        for f in dataclasses.fields(instance):
-            if f.name == "id":
-                continue
-            has_default = (
-                f.default is not dataclasses.MISSING
-                or f.default_factory is not dataclasses.MISSING
-            )
-            if not has_default and getattr(instance, f.name) is None:
-                missing.append(f.name)
-        if missing:
-            fields = ", ".join(missing)
-            raise CendryError(f"Required fields are None: {fields}")
+        validate_required_fields(instance)
 
     def _build_query(
         self,

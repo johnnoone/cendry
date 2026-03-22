@@ -9,6 +9,7 @@ from cendry.serialize import (
     resolve_field_path,
     serialize_update_value,
     to_dict,
+    validate_required_fields,
 )
 from cendry.types import BaseTypeHandler, TypeRegistry, default_registry
 
@@ -196,3 +197,24 @@ def test_resolve_field_path_dot_notation():
 def test_resolve_field_path_unknown():
     """Unknown field names pass through unchanged."""
     assert resolve_field_path(AliasedCity, "unknown_field") == "unknown_field"
+
+
+# --- validate_required_fields ---
+
+
+def test_validate_required_fields_raises():
+    city = City(
+        name=None,
+        state="CA",
+        country="USA",
+        capital=False,
+        population=870_000,
+        regions=[],
+    )
+    with pytest.raises(Exception, match="Required fields are None: name"):
+        validate_required_fields(city)
+
+
+def test_validate_required_fields_passes():
+    city = City(**CITY_DATA)
+    validate_required_fields(city)  # should not raise

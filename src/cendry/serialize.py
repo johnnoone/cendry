@@ -298,6 +298,32 @@ def resolve_field_path(model_class: type[Model], path: str) -> str:
     return path
 
 
+def validate_required_fields(instance: Model) -> None:
+    """Raise CendryError if any required fields are None.
+
+    Args:
+        instance: Model instance to validate.
+
+    Raises:
+        CendryError: If required fields are None.
+    """
+    from .exceptions import CendryError
+
+    missing = []
+    for f in dataclasses.fields(instance):
+        if f.name == "id":
+            continue
+        has_default = (
+            f.default is not dataclasses.MISSING
+            or f.default_factory is not dataclasses.MISSING
+        )
+        if not has_default and getattr(instance, f.name) is None:
+            missing.append(f.name)
+    if missing:
+        fields = ", ".join(missing)
+        raise CendryError(f"Required fields are None: {fields}")
+
+
 def to_dict(
     instance: Model | Map,
     *,
