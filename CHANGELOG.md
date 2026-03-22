@@ -20,6 +20,30 @@
 - **`type_registry` threading** — custom `TypeRegistry` on context now flows through all serialization, deserialization, query, and write paths
 - **`to_dict`/`from_dict`/`deserialize`** — accept optional `registry` parameter
 - **`Query`/`AsyncQuery`** — accept and propagate `registry` through all construction sites
+- **`resolve_field_path`** — recurses into nested Map fields for dot-notation alias resolution
+- **`serialize_update_value`** — accepts `hint` parameter for proper container serialization (e.g. `list[Money]`)
+- **`_cursor_value`** — uses `to_dict` instead of `dataclasses.asdict` for proper type handler support
+- **`WritesMixin`** — shared write methods extracted to `_writes.py`, used by `Batch`, `AsyncBatch`, `Txn`, `AsyncTxn`
+- **`assert` → `CendryError`** — defensive guards safe under `-O` flag
+- **`resolve_field_path` / `validate_required_fields`** — cached for O(1) lookups
+- **`BATCH_LIMIT`** — extracted as named constant with `_check_batch_limit` helper
+- **Migrated docs** from mkdocs-material to [Zensical](https://zensical.org/)
+
+### Documentation
+
+- **Firestore intro** — "What is Firestore?" explanation with links to official docs
+- **SDK vs NDB vs Cendry** — 10 side-by-side use cases comparing all three approaches
+- **Async tutorial** — full `async`/`await` tutorial with sync-vs-async comparison table
+- **Mermaid architecture diagrams** — module graph, dependency graph, read/write/batch/transaction sequence diagrams
+- **How-To guides** — split into single-doc operations + batch/transactions
+- **Integration testing guide** — testcontainers setup, fixtures, CI configuration
+- **Fire color palette** — custom CSS theme for docs
+
+### Testing
+
+- **523 unit tests** — 100% coverage on 1195 source lines
+- **38 integration tests** — against real Firestore emulator via testcontainers
+- **12 BDD integration scenarios** — CRUD, batch, and transaction feature files
 
 ## [0.1.0] — 2026-03-21
 
