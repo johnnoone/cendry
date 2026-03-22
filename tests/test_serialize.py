@@ -6,6 +6,7 @@ from cendry import field as cendry_field
 from cendry.serialize import (
     deserialize,
     from_dict,
+    resolve_field_hint,
     resolve_field_path,
     serialize_update_value,
     to_dict,
@@ -218,3 +219,75 @@ def test_validate_required_fields_raises():
 def test_validate_required_fields_passes():
     city = City(**CITY_DATA)
     validate_required_fields(city)  # should not raise
+
+
+# --- resolve_field_path with nested Map aliases ---
+
+
+class AliasedMayor(Map):
+    full_name: Field[str] = cendry_field(alias="fullName")
+    since: Field[int]
+
+
+class CityWithAliasedMayor(Model, collection="cities_nested"):
+    name: Field[str]
+    mayor: Field[AliasedMayor | None] = cendry_field(default=None)
+
+
+def test_resolve_field_path_nested_map_alias():
+    """Nested Map field aliases are resolved recursively."""
+    assert resolve_field_path(CityWithAliasedMayor, "mayor.full_name") == "mayor.fullName"
+
+
+def test_resolve_field_path_nested_map_no_alias():
+    """Nested Map field without alias passes through."""
+    assert resolve_field_path(CityWithAliasedMayor, "mayor.since") == "mayor.since"
+
+
+def test_resolve_field_path_nested_non_map():
+    """Dot-notation on a non-Map field passes through unchanged."""
+    assert resolve_field_path(CityWithAliasedMayor, "name.sub") == "name.sub"
+
+
+# --- resolve_field_hint ---
+
+
+def test_resolve_field_hint_simple():
+    hint = resolve_field_hint(City, "name")
+    assert hint is str
+
+
+def test_resolve_field_hint_nested_map():
+    hint = resolve_field_hint(CityWithAliasedMayor, "mayor.full_name")
+    assert hint is str
+
+
+def test_resolve_field_hint_unknown():
+    assert resolve_field_hint(City, "nonexistent") is None
+
+
+def test_resolve_field_hint_nested_non_map():
+    assert resolve_field_hint(City, "name.sub") is None
+
+
+# --- serialize_update_value with hint ---
+
+
+def test_serialize_update_value_with_hint_list():
+    """Container types serialize elements when hint is provided."""
+    custom = TypeRegistry()
+    custom.register(Celsius, handler=CelsiusHandler())
+    result = serialize_update_value(
+        [Celsius(20.5), Celsius(30.0)], hint=list[Celsius], registry=custom
+    )
+    assert result == [20.5, 30.0]
+
+
+def test_serialize_update_value_without_hint_list():
+    """Without hint, list elements are not serialized through handlers."""
+    custom = TypeRegistry()
+    custom.register(Celsius, handler=CelsiusHandler())
+    result = serialize_update_value([Celsius(20.5)], registry=custom)
+    # Without hint, type(value) is list, no generic info — elements pass through
+    assert len(result) == 1
+    assert isinstance(result[0], Celsius)

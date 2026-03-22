@@ -23,6 +23,7 @@ from .model import FieldFilterResult, Model
 from .query import AsyncQuery, Query
 from .serialize import (
     deserialize,
+    resolve_field_hint,
     resolve_field_path,
     serialize_update_value,
     to_dict,
@@ -461,7 +462,7 @@ class Cendry(_BaseCendry):
 
         resolved = {
             resolve_field_path(model_class, k): serialize_update_value(
-                v, registry=self.type_registry
+                v, hint=resolve_field_hint(model_class, k), registry=self.type_registry
             )
             for k, v in field_updates.items()
         }
@@ -867,7 +868,7 @@ class AsyncCendry(_BaseCendry):
 
         resolved = {
             resolve_field_path(model_class, k): serialize_update_value(
-                v, registry=self.type_registry
+                v, hint=resolve_field_hint(model_class, k), registry=self.type_registry
             )
             for k, v in field_updates.items()
         }

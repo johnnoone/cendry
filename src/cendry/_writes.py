@@ -6,6 +6,7 @@ from typing import Any, TypeVar, overload
 from .exceptions import CendryError
 from .model import Model
 from .serialize import (
+    resolve_field_hint,
     resolve_field_path,
     serialize_update_value,
     to_dict,
@@ -86,7 +87,9 @@ class WritesMixin:
             field_updates = field_updates_or_none
 
         resolved = {
-            resolve_field_path(model_class, k): serialize_update_value(v, registry=self._registry)
+            resolve_field_path(model_class, k): serialize_update_value(
+                v, hint=resolve_field_hint(model_class, k), registry=self._registry
+            )
             for k, v in field_updates.items()
         }
         col_ref = self._get_collection_ref(model_class, parent)

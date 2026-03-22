@@ -258,11 +258,15 @@ def _is_firestore_transform(value: Any) -> bool:
     return isinstance(value, (Sentinel, _NumericValue, _ValueList))
 
 
-def serialize_update_value(value: Any, *, registry: TypeRegistry | None = None) -> Any:
+def serialize_update_value(
+    value: Any, *, hint: Any = None, registry: TypeRegistry | None = None
+) -> Any:
     """Serialize a value for Firestore update, passing sentinels/transforms through.
 
     Args:
         value: The value to serialize.
+        hint: Optional type hint for the field. Enables container serialization
+            (e.g. ``list[Money]``). If None, falls back to ``type(value)``.
         registry: Optional TypeRegistry. Uses default if not provided.
 
     Returns:
@@ -271,7 +275,7 @@ def serialize_update_value(value: Any, *, registry: TypeRegistry | None = None) 
     if _is_firestore_transform(value):
         return value
     registry = registry or default_registry
-    return _serialize_value(value, type(value), by_alias=True, registry=registry)
+    return _serialize_value(value, hint or type(value), by_alias=True, registry=registry)
 
 
 @functools.cache
@@ -292,10 +296,11 @@ def _required_field_names(cls: type) -> tuple[str, ...]:
     )
 
 
-def resolve_field_path(model_class: type[Model], path: str) -> str:
+def resolve_field_path(model_class: type, path: str) -> str:
     """Resolve a field path, converting Python names to Firestore aliases.
 
-    For dot-notation paths, only the first segment is resolved.
+    Recurses into nested Map fields — ``"mayor.name"`` resolves both
+    ``mayor`` and ``name`` if both have aliases.
     Unknown field names pass through unchanged.
 
     Args:
@@ -310,8 +315,36 @@ def resolve_field_path(model_class: type[Model], path: str) -> str:
     aliases = _cached_field_aliases(model_class)
     alias = aliases.get(first, first)
     if len(segments) > 1:
+        # Try to recurse into a nested Map type
+        hints = _cached_type_hints(model_class)
+        hint = hints.get(first)
+        if hint is not None:
+            map_type = resolve_map_type(hint)
+            if map_type is not None:
+                rest = resolve_field_path(map_type, segments[1])
+                return f"{alias}.{rest}"
         return f"{alias}.{segments[1]}"
     return alias
+
+
+def resolve_field_hint(model_class: type, path: str) -> Any:
+    """Look up the type hint for a field path on a model.
+
+    Recurses into nested Map fields for dot-notation paths.
+    Returns None if the field is not found.
+    """
+    segments = path.split(".", 1)
+    first = segments[0]
+    hints = _cached_type_hints(model_class)
+    hint = hints.get(first)
+    if hint is None:
+        return None
+    if len(segments) > 1:
+        map_type = resolve_map_type(hint)
+        if map_type is not None:
+            return resolve_field_hint(map_type, segments[1])
+        return None
+    return hint
 
 
 def validate_required_fields(instance: Model) -> None:
