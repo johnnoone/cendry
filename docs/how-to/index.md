@@ -24,3 +24,6 @@ Practical recipes for specific tasks. Each guide is self-contained — jump to w
 
 **[Use Async](async.md)**
 :   `AsyncCendry`, `AsyncQuery`, anyio, async iteration.
+
+**[Test with Emulator](testing.md)**
+:   Integration tests with Firestore emulator via testcontainers.

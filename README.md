@@ -432,6 +432,18 @@ except DocumentAlreadyExistsError as e:
     print(e.collection, e.document_id)
 ```
 
+## Testing
+
+```bash
+# Unit tests (no external dependencies)
+uv run pytest
+
+# Integration tests (requires Docker — auto-starts Firestore emulator)
+uv run pytest tests/integration/ -v
+```
+
+Integration tests use [testcontainers](https://testcontainers-python.readthedocs.io/) to automatically start a Firestore emulator via Docker. No manual setup needed.
+
 ## License
 
 MIT
