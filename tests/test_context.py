@@ -546,50 +546,6 @@ async def test_async_cendry_context_manager(mock_firestore_client: MagicMock):
     mock_firestore_client.close.assert_called_once()
 
 
-# --- _validate_required_fields ---
-
-
-def test_validate_required_fields_raises_on_none(mock_firestore_client: MagicMock):
-    city = City(
-        name=None,
-        state="CA",
-        country="USA",
-        capital=False,
-        population=870_000,
-        regions=[],
-    )
-    ctx = Cendry(client=mock_firestore_client)
-    with pytest.raises(CendryError, match="Required fields are None: name"):
-        ctx._validate_required_fields(city)
-
-
-def test_validate_required_fields_passes_with_defaults(mock_firestore_client: MagicMock):
-    city = City(
-        name="SF",
-        state="CA",
-        country="USA",
-        capital=False,
-        population=870_000,
-        regions=[],
-    )
-    ctx = Cendry(client=mock_firestore_client)
-    ctx._validate_required_fields(city)  # should not raise
-
-
-def test_validate_required_fields_ignores_optional(mock_firestore_client: MagicMock):
-    city = City(
-        name="SF",
-        state="CA",
-        country="USA",
-        capital=False,
-        population=870_000,
-        regions=[],
-        nickname=None,
-    )
-    ctx = Cendry(client=mock_firestore_client)
-    ctx._validate_required_fields(city)  # should not raise
-
-
 # --- save ---
 
 

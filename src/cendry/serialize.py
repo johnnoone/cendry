@@ -274,6 +274,24 @@ def serialize_update_value(value: Any, *, registry: TypeRegistry | None = None) 
     return _serialize_value(value, type(value), by_alias=True, registry=registry)
 
 
+@functools.cache
+def _cached_field_aliases(cls: type) -> dict[str, str]:
+    """Map Python field name -> Firestore alias for a model/map class."""
+    return {f.name: _get_alias(f) for f in dataclasses.fields(cls)}
+
+
+@functools.cache
+def _required_field_names(cls: type) -> tuple[str, ...]:
+    """Field names that are required (no default) for a model class."""
+    return tuple(
+        f.name
+        for f in dataclasses.fields(cls)
+        if f.name != "id"
+        and f.default is dataclasses.MISSING
+        and f.default_factory is dataclasses.MISSING
+    )
+
+
 def resolve_field_path(model_class: type[Model], path: str) -> str:
     """Resolve a field path, converting Python names to Firestore aliases.
 
@@ -289,13 +307,11 @@ def resolve_field_path(model_class: type[Model], path: str) -> str:
     """
     segments = path.split(".", 1)
     first = segments[0]
-    for f in dataclasses.fields(model_class):
-        if f.name == first:
-            alias = _get_alias(f)
-            if len(segments) > 1:
-                return f"{alias}.{segments[1]}"
-            return alias
-    return path
+    aliases = _cached_field_aliases(model_class)
+    alias = aliases.get(first, first)
+    if len(segments) > 1:
+        return f"{alias}.{segments[1]}"
+    return alias
 
 
 def validate_required_fields(instance: Model) -> None:
@@ -309,18 +325,9 @@ def validate_required_fields(instance: Model) -> None:
     """
     from .exceptions import CendryError
 
-    missing = []
-    for f in dataclasses.fields(instance):
-        if f.name == "id":
-            continue
-        has_default = (
-            f.default is not dataclasses.MISSING or f.default_factory is not dataclasses.MISSING
-        )
-        if not has_default and getattr(instance, f.name) is None:
-            missing.append(f.name)
+    missing = [n for n in _required_field_names(type(instance)) if getattr(instance, n) is None]
     if missing:
-        fields = ", ".join(missing)
-        raise CendryError(f"Required fields are None: {fields}")
+        raise CendryError(f"Required fields are None: {', '.join(missing)}")
 
 
 def to_dict(

@@ -27,6 +27,12 @@ from .serialize import (
 from .types import TypeRegistry, default_registry
 
 T = TypeVar("T", bound=Model)
+BATCH_LIMIT = 500
+
+
+def _check_batch_limit(n: int) -> None:
+    if n > BATCH_LIMIT:
+        raise CendryError(f"Batch limit exceeded: {n} items, maximum is {BATCH_LIMIT}")
 
 
 class _BaseCendry:
@@ -43,10 +49,6 @@ class _BaseCendry:
             parent_ref = self._client.collection(parent.__collection__).document(parent.id)
             return parent_ref.collection(model_class.__collection__)
         return self._client.collection(model_class.__collection__)
-
-    def _validate_required_fields(self, instance: Model) -> None:
-        """Raise CendryError if any required fields are None."""
-        validate_required_fields(instance)
 
     def _build_query(
         self,
@@ -282,14 +284,14 @@ class Cendry(_BaseCendry):
         Returns:
             The document ID (auto-generated if instance.id was None).
         """
-        self._validate_required_fields(instance)
+        validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
-        doc_ref = col_ref.document() if instance.id is None else col_ref.document(instance.id)
+        is_new = instance.id is None
+        doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
         doc_ref.set(to_dict(instance, by_alias=True, registry=self.type_registry))
-        if instance.id is None:
+        if is_new:
             instance.id = doc_ref.id
-        result: str = doc_ref.id
-        return result
+        return doc_ref.id  # type: ignore[no-any-return]
 
     def create(self, instance: T, *, parent: Model | None = None) -> str:
         """Create a document. Raises if it already exists. Returns the document ID.
@@ -304,17 +306,17 @@ class Cendry(_BaseCendry):
         Raises:
             DocumentAlreadyExistsError: If the document already exists.
         """
-        self._validate_required_fields(instance)
+        validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
-        doc_ref = col_ref.document() if instance.id is None else col_ref.document(instance.id)
+        is_new = instance.id is None
+        doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
         try:
             doc_ref.create(to_dict(instance, by_alias=True, registry=self.type_registry))
         except Conflict as e:
             raise DocumentAlreadyExistsError(type(instance).__collection__, doc_ref.id) from e
-        if instance.id is None:
+        if is_new:
             instance.id = doc_ref.id
-        result: str = doc_ref.id
-        return result
+        return doc_ref.id  # type: ignore[no-any-return]
 
     @overload
     def delete(self, instance: Model, *, parent: Model | None = None) -> None: ...
@@ -350,7 +352,8 @@ class Cendry(_BaseCendry):
             col_ref = self._get_collection_ref(type(instance_or_class), parent)
             col_ref.document(instance_or_class.id).delete()
         else:
-            assert doc_id is not None
+            if doc_id is None:  # pragma: no cover
+                raise CendryError("doc_id is required when calling delete with a class")
             col_ref = self._get_collection_ref(instance_or_class, parent)
             if must_exist:
                 doc = col_ref.document(doc_id).get()
@@ -399,10 +402,12 @@ class Cendry(_BaseCendry):
             field_updates: dict[str, Any] = field_updates_or_doc_id  # type: ignore[assignment]
         else:
             model_class = instance_or_class
-            assert isinstance(field_updates_or_doc_id, str)
+            if not isinstance(field_updates_or_doc_id, str):  # pragma: no cover
+                raise CendryError("doc_id must be a string when calling update with a class")
             doc_id = field_updates_or_doc_id
-            field_updates = field_updates_or_none  # type: ignore[assignment]
-            assert field_updates is not None
+            if field_updates_or_none is None:  # pragma: no cover
+                raise CendryError("field_updates is required when calling update with a class")
+            field_updates = field_updates_or_none
 
         resolved = {
             resolve_field_path(model_class, k): serialize_update_value(
@@ -452,8 +457,7 @@ class Cendry(_BaseCendry):
         Raises:
             CendryError: If more than 500 items or validation fails.
         """
-        if len(instances) > 500:
-            raise CendryError(f"Batch limit exceeded: {len(instances)} items, maximum is 500")
+        _check_batch_limit(len(instances))
         with self.batch() as b:
             for instance in instances:
                 b.save(instance, parent=parent)
@@ -478,17 +482,14 @@ class Cendry(_BaseCendry):
     ) -> None:
         """Delete multiple documents atomically. Max 500 items."""
         if isinstance(instances_or_class, list):
-            if len(instances_or_class) > 500:
-                raise CendryError(
-                    f"Batch limit exceeded: {len(instances_or_class)} items, maximum is 500"
-                )
+            _check_batch_limit(len(instances_or_class))
             with self.batch() as b:
                 for instance in instances_or_class:
                     b.delete(instance, parent=parent)
         else:
-            assert doc_ids is not None
-            if len(doc_ids) > 500:
-                raise CendryError(f"Batch limit exceeded: {len(doc_ids)} items, maximum is 500")
+            if doc_ids is None:  # pragma: no cover
+                raise CendryError("doc_ids is required when calling delete_many with a class")
+            _check_batch_limit(len(doc_ids))
             with self.batch() as b:
                 for doc_id in doc_ids:
                     b.delete(instances_or_class, doc_id, parent=parent)
@@ -681,28 +682,28 @@ class AsyncCendry(_BaseCendry):
 
     async def save(self, instance: T, *, parent: Model | None = None) -> str:
         """Save (upsert) a document. Returns the document ID."""
-        self._validate_required_fields(instance)
+        validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
-        doc_ref = col_ref.document() if instance.id is None else col_ref.document(instance.id)
+        is_new = instance.id is None
+        doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
         await doc_ref.set(to_dict(instance, by_alias=True, registry=self.type_registry))
-        if instance.id is None:
+        if is_new:
             instance.id = doc_ref.id
-        result: str = doc_ref.id
-        return result
+        return doc_ref.id  # type: ignore[no-any-return]
 
     async def create(self, instance: T, *, parent: Model | None = None) -> str:
         """Create a document. Raises if it already exists. Returns the document ID."""
-        self._validate_required_fields(instance)
+        validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
-        doc_ref = col_ref.document() if instance.id is None else col_ref.document(instance.id)
+        is_new = instance.id is None
+        doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
         try:
             await doc_ref.create(to_dict(instance, by_alias=True, registry=self.type_registry))
         except Conflict as e:
             raise DocumentAlreadyExistsError(type(instance).__collection__, doc_ref.id) from e
-        if instance.id is None:
+        if is_new:
             instance.id = doc_ref.id
-        result: str = doc_ref.id
-        return result
+        return doc_ref.id  # type: ignore[no-any-return]
 
     @overload
     async def delete(self, instance: Model, *, parent: Model | None = None) -> None: ...
@@ -731,7 +732,8 @@ class AsyncCendry(_BaseCendry):
             col_ref = self._get_collection_ref(type(instance_or_class), parent)
             await col_ref.document(instance_or_class.id).delete()
         else:
-            assert doc_id is not None
+            if doc_id is None:  # pragma: no cover
+                raise CendryError("doc_id is required when calling delete with a class")
             col_ref = self._get_collection_ref(instance_or_class, parent)
             if must_exist:
                 doc = await col_ref.document(doc_id).get()
@@ -770,10 +772,12 @@ class AsyncCendry(_BaseCendry):
             field_updates: dict[str, Any] = field_updates_or_doc_id  # type: ignore[assignment]
         else:
             model_class = instance_or_class
-            assert isinstance(field_updates_or_doc_id, str)
+            if not isinstance(field_updates_or_doc_id, str):  # pragma: no cover
+                raise CendryError("doc_id must be a string when calling update with a class")
             doc_id = field_updates_or_doc_id
-            field_updates = field_updates_or_none  # type: ignore[assignment]
-            assert field_updates is not None
+            if field_updates_or_none is None:  # pragma: no cover
+                raise CendryError("field_updates is required when calling update with a class")
+            field_updates = field_updates_or_none
 
         resolved = {
             resolve_field_path(model_class, k): serialize_update_value(
@@ -807,8 +811,7 @@ class AsyncCendry(_BaseCendry):
 
     async def save_many(self, instances: list[T], *, parent: Model | None = None) -> None:
         """Save multiple documents atomically. Max 500 items."""
-        if len(instances) > 500:
-            raise CendryError(f"Batch limit exceeded: {len(instances)} items, maximum is 500")
+        _check_batch_limit(len(instances))
         async with self.batch() as b:
             for instance in instances:
                 b.save(instance, parent=parent)
@@ -835,17 +838,14 @@ class AsyncCendry(_BaseCendry):
     ) -> None:
         """Delete multiple documents atomically. Max 500 items."""
         if isinstance(instances_or_class, list):
-            if len(instances_or_class) > 500:
-                raise CendryError(
-                    f"Batch limit exceeded: {len(instances_or_class)} items, maximum is 500"
-                )
+            _check_batch_limit(len(instances_or_class))
             async with self.batch() as b:
                 for instance in instances_or_class:
                     b.delete(instance, parent=parent)
         else:
-            assert doc_ids is not None
-            if len(doc_ids) > 500:
-                raise CendryError(f"Batch limit exceeded: {len(doc_ids)} items, maximum is 500")
+            if doc_ids is None:  # pragma: no cover
+                raise CendryError("doc_ids is required when calling delete_many with a class")
+            _check_batch_limit(len(doc_ids))
             async with self.batch() as b:
                 for doc_id in doc_ids:
                     b.delete(instances_or_class, doc_id, parent=parent)
@@ -888,7 +888,9 @@ class AsyncCendry(_BaseCendry):
         if fn is None:
             return txn
 
-        from google.cloud.firestore_v1.async_transaction import async_transactional  # pragma: no cover
+        from google.cloud.firestore_v1.async_transaction import (
+            async_transactional,  # pragma: no cover
+        )
 
         @async_transactional  # pragma: no cover
         async def _run(transaction: Any) -> Any:  # pragma: no cover
