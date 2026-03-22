@@ -12,3 +12,6 @@ Step-by-step guides to learn Cendry. Each tutorial builds on the previous one.
 
 **[Writing Data](writing.md)**
 :   Save, update, delete, batch writes, and transactions. *~10 minutes.*
+
+**[Async with Cendry](async.md)**
+:   Use `AsyncCendry` with `async`/`await` — reads, writes, queries, transactions. *~10 minutes.*

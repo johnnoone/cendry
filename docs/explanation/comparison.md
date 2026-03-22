@@ -1,10 +1,75 @@
-# Firestore SDK vs Cendry
+# Firestore SDK vs NDB vs Cendry
 
-Side-by-side comparison of common use cases. Left is raw `google-cloud-firestore`, right is Cendry.
+Side-by-side comparison of common use cases across three approaches:
+
+- **Firestore SDK** — `google-cloud-firestore`, the official low-level client
+- **NDB** — `google-cloud-ndb`, the legacy App Engine ORM (Datastore mode only)
+- **Cendry** — typed ODM for Firestore Native mode
+
+!!! warning "NDB is deprecated for new projects"
+    [Cloud NDB](https://github.com/googleapis/python-ndb) only works with **Firestore in Datastore mode** — it does [not support Firestore Native mode](https://github.com/googleapis/python-ndb/issues/140). Google recommends [Firestore Native mode for all new applications](https://cloud.google.com/datastore/docs/firestore-or-datastore). NDB is shown here for developers migrating from App Engine.
+
+---
+
+## Define a model
+
+=== "NDB (deprecated)"
+
+    ```python
+    from google.cloud import ndb
+
+    class City(ndb.Model):
+        name = ndb.StringProperty()
+        state = ndb.StringProperty()
+        population = ndb.IntegerProperty()
+        mayor = ndb.StructuredProperty(Mayor)  # nested
+    ```
+
+    No type annotations, no IDE autocomplete on fields.
+
+=== "Firestore SDK"
+
+    No model layer — you work with raw dicts.
+
+    ```python
+    # No model definition — just use dicts everywhere
+    city_data = {
+        "name": "San Francisco",
+        "state": "CA",
+        "population": 870000,
+    }
+    ```
+
+=== "Cendry"
+
+    ```python
+    from cendry import Model, Map, Field, field
+
+    class Mayor(Map):
+        name: Field[str]
+        since: Field[int]
+
+    class City(Model, collection="cities"):
+        name: Field[str]
+        state: Field[str]
+        population: Field[int]
+        mayor: Field[Mayor | None] = field(default=None)
+    ```
+
+    Type annotations validated at class definition. Full IDE support.
 
 ---
 
 ## Read a document
+
+=== "NDB (deprecated)"
+
+    ```python
+    city = City.get_by_id("SF")
+    if city is None:
+        raise Exception("Not found")
+    print(city.name)
+    ```
 
 === "Firestore SDK"
 
@@ -17,7 +82,7 @@ Side-by-side comparison of common use cases. Left is raw `google-cloud-firestore
         raise Exception("Not found")
     data = doc.to_dict()
     name = data["name"]       # no type safety
-    population = data["pop"]  # typo? no error
+    population = data["pop"]  # typo? no error at all
     ```
 
 === "Cendry"
@@ -34,6 +99,15 @@ Side-by-side comparison of common use cases. Left is raw `google-cloud-firestore
 ---
 
 ## Query with filters
+
+=== "NDB (deprecated)"
+
+    ```python
+    cities = City.query(
+        City.state == "CA",
+        City.population > 1_000_000,
+    ).order(-City.population).fetch(10)
+    ```
 
 === "Firestore SDK"
 
@@ -70,6 +144,14 @@ Side-by-side comparison of common use cases. Left is raw `google-cloud-firestore
 
 ## Save a document
 
+=== "NDB (deprecated)"
+
+    ```python
+    city = City(name="San Francisco", state="CA", population=870000)
+    city.put()
+    print(city.key.id())
+    ```
+
 === "Firestore SDK"
 
     ```python
@@ -91,6 +173,16 @@ Side-by-side comparison of common use cases. Left is raw `google-cloud-firestore
 ---
 
 ## Partial update
+
+=== "NDB (deprecated)"
+
+    ```python
+    city = City.get_by_id("SF")
+    city.population = 900_000
+    city.put()  # overwrites entire entity — no partial update
+    ```
+
+    NDB doesn't support partial updates — you must fetch, modify, and re-save the entire entity.
 
 === "Firestore SDK"
 
@@ -120,6 +212,13 @@ Side-by-side comparison of common use cases. Left is raw `google-cloud-firestore
 
 ## Delete a document
 
+=== "NDB (deprecated)"
+
+    ```python
+    key = ndb.Key("City", "SF")
+    key.delete()
+    ```
+
 === "Firestore SDK"
 
     ```python
@@ -138,6 +237,13 @@ Side-by-side comparison of common use cases. Left is raw `google-cloud-firestore
 ---
 
 ## Batch writes
+
+=== "NDB (deprecated)"
+
+    ```python
+    ndb.put_multi([city1, city2, city3])
+    ndb.delete_multi([key1, key2])
+    ```
 
 === "Firestore SDK"
 
@@ -164,6 +270,20 @@ Side-by-side comparison of common use cases. Left is raw `google-cloud-firestore
 ---
 
 ## Transactions
+
+=== "NDB (deprecated)"
+
+    ```python
+    @ndb.transactional
+    def transfer():
+        sf = City.get_by_id("SF")
+        la = City.get_by_id("LA")
+        sf.population -= 1000
+        la.population += 1000
+        ndb.put_multi([sf, la])
+
+    transfer()
+    ```
 
 === "Firestore SDK"
 
@@ -204,6 +324,19 @@ Side-by-side comparison of common use cases. Left is raw `google-cloud-firestore
 
 ## Nested data (Maps)
 
+=== "NDB (deprecated)"
+
+    ```python
+    class Mayor(ndb.Model):
+        name = ndb.StringProperty()
+
+    class City(ndb.Model):
+        mayor = ndb.StructuredProperty(Mayor)
+
+    city = City.get_by_id("SF")
+    print(city.mayor.name)  # typed but no IDE support
+    ```
+
 === "Firestore SDK"
 
     ```python
@@ -222,6 +355,10 @@ Side-by-side comparison of common use cases. Left is raw `google-cloud-firestore
 ---
 
 ## Optimistic locking
+
+=== "NDB (deprecated)"
+
+    NDB doesn't have built-in optimistic locking. You must use transactions for conflict resolution.
 
 === "Firestore SDK"
 
@@ -246,14 +383,15 @@ Side-by-side comparison of common use cases. Left is raw `google-cloud-firestore
 
 ## Summary
 
-| Aspect | Firestore SDK | Cendry |
-|--------|--------------|--------|
-| **Data access** | `dict["field"]` — untyped | `instance.field` — typed |
-| **Filters** | `FieldFilter("field", "op", value)` | `City.field == value` |
-| **Validation** | None — write anything | Fields validated at class definition |
-| **Nested data** | `dict.get("a", {}).get("b")` | `instance.a.b` |
-| **Serialization** | Manual dict construction | Automatic via `to_dict`/`from_dict` |
-| **ID management** | Manual `document()` calls | Auto-generated, set on instance |
-| **Error handling** | Raw Google exceptions | `DocumentNotFoundError`, `DocumentAlreadyExistsError` |
-| **Optimistic lock** | `LastUpdateOption(doc.update_time)` | `if_unchanged=True` |
-| **IDE support** | None | Full autocomplete, type checking |
+| Aspect | NDB (deprecated) | Firestore SDK | Cendry |
+|--------|------------------|--------------|--------|
+| **Database** | Datastore mode only | Native mode | Native mode |
+| **Model layer** | `ndb.Model` — no type annotations | None — raw dicts | `Model` + `Field[T]` — typed |
+| **Data access** | `instance.field` — untyped | `dict["field"]` — untyped | `instance.field` — typed |
+| **Filters** | `City.state == "CA"` | `FieldFilter("state", "==", "CA")` | `City.state == "CA"` |
+| **Partial update** | Not supported | `doc.update({...})` | `ctx.update(instance, {...})` |
+| **Nested data** | `StructuredProperty` | Nested dicts | `Map` class — typed |
+| **Optimistic lock** | Not supported | `LastUpdateOption(...)` | `if_unchanged=True` |
+| **Async** | Not supported | `AsyncClient` | `AsyncCendry` |
+| **IDE support** | Minimal | None | Full autocomplete + type checking |
+| **Status** | Legacy — Datastore only | Active — low-level | Active — typed ODM |

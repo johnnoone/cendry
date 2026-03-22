@@ -44,7 +44,11 @@ extra_css:
 markdown_extensions:
   - admonition
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
@@ -79,6 +83,7 @@ nav:
     - First Steps: tutorials/first-steps.md
     - Querying Data: tutorials/querying.md
     - Writing Data: tutorials/writing.md
+    - Async: tutorials/async.md
   - How-To Guides:
     - how-to/index.md
     - Define Models: how-to/models.md
