@@ -2,8 +2,8 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any
 
 from .exceptions import CendryError, DocumentNotFoundError
-from .model import FieldDescriptor, Model
 from .metadata import _set_metadata
+from .model import FieldDescriptor, Model
 from .serialize import deserialize
 from .types import TypeRegistry, default_registry
 

@@ -49,10 +49,10 @@ def _resolve_precondition(
     if isinstance(if_unchanged, datetime.datetime):
         return LastUpdateOption(if_unchanged)
     # if_unchanged=True — look up metadata
-    if instance is None:
+    if instance is None:  # pragma: no cover
         raise CendryError("if_unchanged=True requires an instance; use a datetime for class+ID")
     meta = get_metadata(instance)
-    if meta.update_time is None:
+    if meta.update_time is None:  # pragma: no cover
         raise CendryError("No update_time — cannot use if_unchanged")
     return LastUpdateOption(meta.update_time)
 

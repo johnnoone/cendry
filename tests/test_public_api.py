@@ -17,6 +17,7 @@ def test_public_api_exports():
         "DELETE_FIELD",
         "Desc",
         "DocumentAlreadyExistsError",
+        "DocumentMetadata",
         "DocumentNotFoundError",
         "Field",
         "FieldDescriptor",
@@ -34,6 +35,7 @@ def test_public_api_exports():
         "TypeRegistry",
         "field",
         "from_dict",
+        "get_metadata",
         "register_type",
         "to_dict",
     ]

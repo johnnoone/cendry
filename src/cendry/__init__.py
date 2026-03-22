@@ -14,6 +14,7 @@ from .batch import AsyncBatch, Batch
 from .context import AsyncCendry, Cendry
 from .exceptions import CendryError, DocumentAlreadyExistsError, DocumentNotFoundError
 from .filters import And, FieldFilter, Or
+from .metadata import DocumentMetadata, get_metadata
 from .model import Field, FieldDescriptor, Map, Model, field
 from .query import Asc, AsyncQuery, Desc, Query
 from .serialize import from_dict, to_dict
@@ -37,6 +38,7 @@ __all__ = [
     "CendryError",
     "Desc",
     "DocumentAlreadyExistsError",
+    "DocumentMetadata",
     "DocumentNotFoundError",
     "Field",
     "FieldDescriptor",
@@ -53,6 +55,7 @@ __all__ = [
     "TypeRegistry",
     "field",
     "from_dict",
+    "get_metadata",
     "register_type",
     "to_dict",
 ]

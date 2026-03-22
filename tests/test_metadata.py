@@ -64,7 +64,7 @@ def test_weakref_cleanup():
     get_metadata(city)
 
     # Drop reference — metadata should be GC'd
-    city_id = id(city)
+    id(city)
     del city
     gc.collect()
 

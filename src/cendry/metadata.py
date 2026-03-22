@@ -65,7 +65,8 @@ def _set_metadata(
             existing.create_time = create_time
     else:
         ref = _make_ref(instance)
-        _metadata_store[obj_id] = (ref, DocumentMetadata(update_time=update_time, create_time=create_time))
+        meta = DocumentMetadata(update_time=update_time, create_time=create_time)
+        _metadata_store[obj_id] = (ref, meta)
 
 
 def _clear_metadata(instance: Any) -> None:
