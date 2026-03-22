@@ -7,6 +7,9 @@ Practical recipes for specific tasks. Each guide is self-contained — jump to w
 **[Define Models](models.md)**
 :   Models, Maps, fields, defaults, enums, inheritance.
 
+**[Write, Update, and Delete](writing.md)**
+:   Save, create, update, delete, batch writes, transactions.
+
 **[Filter and Query](filtering.md)**
 :   Operators, composition, chainable queries, operator reference table.
 

@@ -45,6 +45,32 @@ pip install cendry
             print(city.name, city.population)
     ```
 
+=== "Write"
+
+    ```python
+    from cendry import Cendry, Increment
+
+    with Cendry() as ctx:
+        # Save (upsert)
+        city = City(name="SF", state="CA", population=870_000)
+        ctx.save(city)  # auto-generates ID
+
+        # Partial update
+        ctx.update(city, {"population": Increment(1000)})
+
+        # Atomic batch
+        with ctx.batch() as batch:
+            batch.save(city1)
+            batch.delete(city2)
+
+        # Transaction with auto-retry
+        def transfer(txn):
+            src = txn.get(City, "SF")
+            txn.update(src, {"population": src.population - 100})
+
+        ctx.transaction(transfer)
+    ```
+
 === "Async"
 
     ```python
@@ -53,6 +79,9 @@ pip install cendry
     async with AsyncCendry() as ctx:
         city = await ctx.get(City, "SF")
         print(city.name)
+
+        await ctx.save(city)
+        await ctx.update(city, {"population": 900_000})
 
         async for city in ctx.select(City, City.state == "CA"):
             print(city.population)
@@ -87,6 +116,9 @@ pip install cendry
 | **Batch fetch** | `ctx.get_many(City, ["SF", "LA", "NYC"])` |
 | **Field aliases** | `field(alias="displayName")` — Python name ≠ Firestore name |
 | **Enum support** | `Field[Status]` — auto-converts by value or name |
+| **Write operations** | `ctx.save(city)`, `ctx.create(city)`, `ctx.update(city, {...})`, `ctx.delete(city)` |
+| **Batch writes** | `ctx.save_many([...])`, `with ctx.batch() as b:` — atomic, max 500 |
+| **Transactions** | `ctx.transaction(fn)` — auto-retry, read-then-write atomicity |
 | **Serialization** | `from_dict(City, {...})` and `to_dict(city)` |
 | **Custom types** | `register_type(Money, deserialize=...)` |
 | **Context manager** | `with Cendry() as ctx:` — auto-closes client |

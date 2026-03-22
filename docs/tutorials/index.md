@@ -9,3 +9,6 @@ Step-by-step guides to learn Cendry. Each tutorial builds on the previous one.
 
 **[Querying Data](querying.md)**
 :   Filter with Python operators, chain queries, order results, paginate, and debug with copy-pasteable repr. *~10 minutes.*
+
+**[Writing Data](writing.md)**
+:   Save, update, delete, batch writes, and transactions. *~10 minutes.*

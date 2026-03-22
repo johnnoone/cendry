@@ -10,14 +10,19 @@ from cendry import (
     Cendry, AsyncCendry,
     # Query
     Query, AsyncQuery, Asc, Desc,
+    # Batch & Transactions
+    Batch, AsyncBatch, Txn, AsyncTxn,
     # Filters
     FieldFilter, And, Or,
+    # Firestore sentinels & transforms
+    DELETE_FIELD, SERVER_TIMESTAMP,
+    Increment, ArrayUnion, ArrayRemove, Maximum, Minimum,
     # Serialization
     from_dict, to_dict,
     # Type system
     TypeHandler, BaseTypeHandler, TypeRegistry, register_type,
     # Exceptions
-    CendryError, DocumentNotFoundError,
+    CendryError, DocumentNotFoundError, DocumentAlreadyExistsError,
 )
 ```
 

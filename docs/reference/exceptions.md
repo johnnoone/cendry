@@ -5,3 +5,7 @@
 ---
 
 ::: cendry.exceptions.DocumentNotFoundError
+
+---
+
+::: cendry.exceptions.DocumentAlreadyExistsError

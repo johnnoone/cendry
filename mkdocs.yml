@@ -75,9 +75,11 @@ nav:
     - tutorials/index.md
     - First Steps: tutorials/first-steps.md
     - Querying Data: tutorials/querying.md
+    - Writing Data: tutorials/writing.md
   - How-To Guides:
     - how-to/index.md
     - Define Models: how-to/models.md
+    - Write, Update, Delete: how-to/writing.md
     - Filter and Query: how-to/filtering.md
     - Use Aliases: how-to/aliases.md
     - Serialize Data: how-to/serialization.md

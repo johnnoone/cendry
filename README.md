@@ -4,7 +4,7 @@ A Firestore ODM for Python. Typed models, composable filters, sync and async sup
 
 Built on top of [google-cloud-firestore](https://pypi.org/project/google-cloud-firestore/) and [anyio](https://pypi.org/project/anyio/).
 
-**Python >= 3.13** | **Read-only (v1)**
+**Python >= 3.13**
 
 ## Installation
 
@@ -185,6 +185,98 @@ async for page in query.paginate(page_size=10):
     process(page)
 ```
 
+## Write Operations
+
+### Save (upsert)
+
+```python
+city = City(name="SF", state="CA", country="USA", capital=False, population=870_000, regions=[])
+doc_id = ctx.save(city)  # auto-generates ID, mutates city.id
+print(city.id)           # "auto-generated-id"
+
+city.population = 900_000
+ctx.save(city)           # overwrites with explicit ID
+```
+
+### Create (insert only)
+
+```python
+from cendry import DocumentAlreadyExistsError
+
+try:
+    ctx.create(city)
+except DocumentAlreadyExistsError:
+    print("Already exists!")
+```
+
+### Update (partial)
+
+```python
+from cendry import DELETE_FIELD, SERVER_TIMESTAMP, Increment
+
+# By instance
+ctx.update(city, {"population": 900_000, "name": "San Francisco"})
+
+# By class + ID
+ctx.update(City, "SF", {"population": Increment(1000)})
+
+# Dot-notation for nested fields
+ctx.update(city, {"mayor.name": "Jane", "updated_at": SERVER_TIMESTAMP})
+```
+
+### Delete
+
+```python
+ctx.delete(city)                          # by instance
+ctx.delete(City, "SF")                    # by class + ID
+ctx.delete(City, "SF", must_exist=True)   # raises if missing
+```
+
+### Refresh
+
+```python
+ctx.update(city, {"population": Increment(1000)})
+ctx.refresh(city)  # re-fetches from Firestore, mutates in-place
+print(city.population)  # updated value
+```
+
+## Batch Writes
+
+```python
+# Save many (atomic, max 500)
+ctx.save_many([city1, city2, city3])
+
+# Delete many
+ctx.delete_many([city1, city2])
+ctx.delete_many(City, ["SF", "LA"])
+
+# Mix operations with batch context manager
+with ctx.batch() as batch:
+    batch.save(city1)
+    batch.create(city2)
+    batch.update(city3, {"population": 1_000_000})
+    batch.delete(city4)
+# auto-commits on exit
+```
+
+## Transactions
+
+```python
+# Callback pattern (auto-retry on contention)
+def transfer(txn):
+    from_city = txn.get(City, "SF")
+    to_city = txn.get(City, "LA")
+    txn.update(from_city, {"population": from_city.population - 1000})
+    txn.update(to_city, {"population": to_city.population + 1000})
+
+ctx.transaction(transfer)
+
+# Context manager (single attempt)
+with ctx.transaction() as txn:
+    city = txn.get(City, "SF")
+    txn.update(city, {"population": city.population + 1000})
+```
+
 ## Batch Fetch
 
 ```python
@@ -297,11 +389,16 @@ Supported: `str`, `int`, `float`, `bool`, `bytes`, `Decimal`, `datetime`, `GeoPo
 ## Exceptions
 
 ```python
-from cendry import CendryError, DocumentNotFoundError
+from cendry import CendryError, DocumentNotFoundError, DocumentAlreadyExistsError
 
 try:
     city = ctx.get(City, "NOPE")
 except DocumentNotFoundError as e:
+    print(e.collection, e.document_id)
+
+try:
+    ctx.create(city)
+except DocumentAlreadyExistsError as e:
     print(e.collection, e.document_id)
 ```
 
