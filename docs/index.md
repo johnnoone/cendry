@@ -89,6 +89,10 @@ pip install cendry
 
 ---
 
+## What is Firestore?
+
+[Cloud Firestore](https://firebase.google.com/docs/firestore) is a NoSQL document database from Google — serverless, scalable, strongly consistent. Cendry is a **typed ODM** (Object-Document Mapper) that lets you work with Firestore using Python classes instead of raw dicts. [Learn more →](explanation/firestore.md)
+
 ## Why Cendry?
 
 <div class="grid" markdown>
