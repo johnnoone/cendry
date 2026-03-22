@@ -35,6 +35,19 @@
   color: #ffffff;
 }
 
+/* Search — icon uses CSS mask with background-color, not color */
+[data-md-color-scheme="default"] .md-search__button::before {
+  background-color: #ffffff !important;
+}
+
+[data-md-color-scheme="default"] .md-search__button {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+[data-md-color-scheme="default"] .md-search__button::after {
+  color: #000000;
+}
+
 /* Tabs — darker ember */
 [data-md-color-scheme="default"] .md-tabs {
   background-color: #7A0E01;
@@ -73,6 +86,14 @@
 [data-md-color-scheme="slate"] .md-header .md-header__topic,
 [data-md-color-scheme="slate"] .md-header a {
   color: #FDE492;
+}
+
+[data-md-color-scheme="slate"] .md-search__button::before {
+  background-color: #FDE492 !important;
+}
+
+[data-md-color-scheme="slate"] .md-search__button {
+  color: rgba(253, 228, 146, 0.5);
 }
 
 [data-md-color-scheme="slate"] .md-tabs {
