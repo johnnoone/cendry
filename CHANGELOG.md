@@ -12,6 +12,8 @@
 - **`DocumentAlreadyExistsError`** — raised by `create` when document exists, preserves `__cause__`
 - **Firestore re-exports** — `DELETE_FIELD`, `SERVER_TIMESTAMP`, `Increment`, `ArrayUnion`, `ArrayRemove`, `Maximum`, `Minimum`
 - **`validate_required_fields`** — standalone function in `serialize.py`
+- **Optimistic locking** — `get_metadata(instance)` returns `DocumentMetadata` with `update_time`/`create_time`, tracked via weakref; `if_unchanged=True` on `update`/`delete` passes Firestore `LastUpdateOption` precondition
+- **`DocumentMetadata`** and **`get_metadata`** — document metadata tracking, auto-populated on reads and writes
 
 ### Changed
 

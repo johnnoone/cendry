@@ -386,6 +386,36 @@ register_type(lambda cls: hasattr(cls, "__my_protocol__"))
 
 Supported: `str`, `int`, `float`, `bool`, `bytes`, `Decimal`, `datetime`, `GeoPoint`, `DocumentReference`, `list`, `tuple`, `set`, `dict`, `Map`, dataclasses, `TypedDict`, `enum.Enum`, pydantic/attrs/msgspec (if installed).
 
+## Optimistic Locking
+
+Prevent conflicting writes — Cendry tracks Firestore's `update_time` metadata automatically:
+
+```python
+from cendry import get_metadata
+
+city = ctx.get(City, "SF")
+meta = get_metadata(city)
+print(meta.update_time)  # datetime from Firestore
+
+# Only update if nobody changed it since we read
+ctx.update(city, {"population": 900_000}, if_unchanged=True)
+ctx.delete(city, if_unchanged=True)
+
+# Class+ID form — pass datetime directly
+ctx.update(City, "SF", {"population": 900_000}, if_unchanged=some_datetime)
+```
+
+After batch writes, refresh to get metadata:
+
+```python
+with ctx.batch() as batch:
+    batch.save(city1)
+    batch.save(city2)
+
+ctx.refresh(city1)  # now get_metadata(city1).update_time is set
+ctx.update(city1, {"population": 900_000}, if_unchanged=True)
+```
+
 ## Exceptions
 
 ```python

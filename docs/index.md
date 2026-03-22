@@ -119,6 +119,7 @@ pip install cendry
 | **Write operations** | `ctx.save(city)`, `ctx.create(city)`, `ctx.update(city, {...})`, `ctx.delete(city)` |
 | **Batch writes** | `ctx.save_many([...])`, `with ctx.batch() as b:` — atomic, max 500 |
 | **Transactions** | `ctx.transaction(fn)` — auto-retry, read-then-write atomicity |
+| **Optimistic locking** | `ctx.update(city, {...}, if_unchanged=True)` — precondition-based |
 | **Serialization** | `from_dict(City, {...})` and `to_dict(city)` |
 | **Custom types** | `register_type(Money, deserialize=...)` |
 | **Context manager** | `with Cendry() as ctx:` — auto-closes client |

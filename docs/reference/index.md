@@ -21,6 +21,8 @@ from cendry import (
     from_dict, to_dict,
     # Type system
     TypeHandler, BaseTypeHandler, TypeRegistry, register_type,
+    # Metadata
+    get_metadata, DocumentMetadata,
     # Exceptions
     CendryError, DocumentNotFoundError, DocumentAlreadyExistsError,
 )
