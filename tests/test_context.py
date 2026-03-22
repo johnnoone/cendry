@@ -1689,3 +1689,75 @@ def test_refresh_populates_metadata(mock_firestore_client: MagicMock):
     meta = get_metadata(city)
     assert meta.update_time == datetime.datetime(2026, 3, 22, tzinfo=datetime.UTC)
     assert meta.create_time == datetime.datetime(2025, 1, 1, tzinfo=datetime.UTC)
+
+
+# --- if_unchanged ---
+
+
+def test_update_if_unchanged(mock_firestore_client: MagicMock):
+    import datetime
+
+    from cendry.metadata import _set_metadata
+
+    city = City(**SF_DATA, id="SF")
+    t = datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
+    _set_metadata(city, update_time=t)
+
+    write_result = MagicMock()
+    write_result.update_time = datetime.datetime(2026, 3, 22, tzinfo=datetime.UTC)
+    mock_firestore_client.collection.return_value.document.return_value.update.return_value = (
+        write_result
+    )
+
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.update(city, {"population": 900_000}, if_unchanged=True)
+
+    call_kwargs = (
+        mock_firestore_client.collection.return_value.document.return_value.update.call_args
+    )
+    assert call_kwargs.kwargs.get("option") is not None
+
+
+def test_delete_if_unchanged(mock_firestore_client: MagicMock):
+    import datetime
+
+    from cendry.metadata import _set_metadata
+
+    city = City(**SF_DATA, id="SF")
+    t = datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
+    _set_metadata(city, update_time=t)
+
+    ctx = Cendry(client=mock_firestore_client)
+    ctx.delete(city, if_unchanged=True)
+
+    call_kwargs = (
+        mock_firestore_client.collection.return_value.document.return_value.delete.call_args
+    )
+    assert call_kwargs.kwargs.get("option") is not None
+
+
+def test_update_if_unchanged_datetime(mock_firestore_client: MagicMock):
+    import datetime
+
+    write_result = MagicMock()
+    write_result.update_time = datetime.datetime(2026, 3, 22, tzinfo=datetime.UTC)
+    mock_firestore_client.collection.return_value.document.return_value.update.return_value = (
+        write_result
+    )
+
+    ctx = Cendry(client=mock_firestore_client)
+    t = datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
+    ctx.update(City, "SF", {"population": 900_000}, if_unchanged=t)
+
+    call_kwargs = (
+        mock_firestore_client.collection.return_value.document.return_value.update.call_args
+    )
+    assert call_kwargs.kwargs.get("option") is not None
+
+
+def test_if_unchanged_no_metadata_raises(mock_firestore_client: MagicMock):
+    city = City(**SF_DATA, id="SF")
+    ctx = Cendry(client=mock_firestore_client)
+
+    with pytest.raises(CendryError, match="No metadata"):
+        ctx.update(city, {"population": 900_000}, if_unchanged=True)

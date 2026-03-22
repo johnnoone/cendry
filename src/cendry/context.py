@@ -6,16 +6,19 @@ if TYPE_CHECKING:
     from .batch import AsyncBatch, Batch
     from .transaction import AsyncTxn, Txn
 
+import datetime
+
 from google.api_core.exceptions import NotFound
 from google.cloud.exceptions import Conflict
 from google.cloud.firestore import Client
+from google.cloud.firestore_v1._helpers import LastUpdateOption
 from google.cloud.firestore_v1.base_query import And as FsAnd
 from google.cloud.firestore_v1.base_query import FieldFilter as FsFieldFilter
 from google.cloud.firestore_v1.base_query import Or as FsOr
 
 from .exceptions import CendryError, DocumentAlreadyExistsError, DocumentNotFoundError
 from .filters import And, Or
-from .metadata import _clear_metadata, _set_metadata
+from .metadata import _clear_metadata, _set_metadata, get_metadata
 from .model import FieldFilterResult, Model
 from .query import AsyncQuery, Query
 from .serialize import (
@@ -34,6 +37,24 @@ BATCH_LIMIT = 500
 def _check_batch_limit(n: int) -> None:
     if n > BATCH_LIMIT:
         raise CendryError(f"Batch limit exceeded: {n} items, maximum is {BATCH_LIMIT}")
+
+
+def _resolve_precondition(
+    if_unchanged: bool | datetime.datetime,
+    instance: Model | None = None,
+) -> LastUpdateOption | None:
+    """Resolve if_unchanged into a Firestore LastUpdateOption."""
+    if if_unchanged is False:
+        return None
+    if isinstance(if_unchanged, datetime.datetime):
+        return LastUpdateOption(if_unchanged)
+    # if_unchanged=True — look up metadata
+    if instance is None:
+        raise CendryError("if_unchanged=True requires an instance; use a datetime for class+ID")
+    meta = get_metadata(instance)
+    if meta.update_time is None:
+        raise CendryError("No update_time — cannot use if_unchanged")
+    return LastUpdateOption(meta.update_time)
 
 
 class _BaseCendry:
@@ -330,7 +351,13 @@ class Cendry(_BaseCendry):
         return doc_ref.id  # type: ignore[no-any-return]
 
     @overload
-    def delete(self, instance: Model, *, parent: Model | None = None) -> None: ...
+    def delete(
+        self,
+        instance: Model,
+        *,
+        parent: Model | None = None,
+        if_unchanged: bool | datetime.datetime = False,
+    ) -> None: ...
     @overload
     def delete(
         self,
@@ -339,6 +366,7 @@ class Cendry(_BaseCendry):
         *,
         parent: Model | None = None,
         must_exist: bool = False,
+        if_unchanged: bool | datetime.datetime = False,
     ) -> None: ...
 
     def delete(  # type: ignore[misc]
@@ -348,6 +376,7 @@ class Cendry(_BaseCendry):
         *,
         parent: Model | None = None,
         must_exist: bool = False,
+        if_unchanged: bool | datetime.datetime = False,
     ) -> None:
         """Delete a document by instance or by class + ID.
 
@@ -356,26 +385,34 @@ class Cendry(_BaseCendry):
             doc_id: Document ID (required when passing a class).
             parent: Parent document for subcollection deletes.
             must_exist: If True, raise DocumentNotFoundError when the document doesn't exist.
+            if_unchanged: If True, only delete if unchanged since last read. Accepts datetime.
         """
         if isinstance(instance_or_class, Model):
             if instance_or_class.id is None:
                 raise CendryError("Cannot delete a model instance with id=None")
+            option = _resolve_precondition(if_unchanged, instance_or_class)
             col_ref = self._get_collection_ref(type(instance_or_class), parent)
-            col_ref.document(instance_or_class.id).delete()
+            col_ref.document(instance_or_class.id).delete(option=option)
             _clear_metadata(instance_or_class)
         else:
             if doc_id is None:  # pragma: no cover
-                raise CendryError("doc_id is required when calling delete with a class")
+                raise CendryError("doc_id is required")  # pragma: no cover
+            option = _resolve_precondition(if_unchanged)
             col_ref = self._get_collection_ref(instance_or_class, parent)
             if must_exist:
                 doc = col_ref.document(doc_id).get()
                 if not doc.exists:
                     raise DocumentNotFoundError(instance_or_class.__collection__, doc_id)
-            col_ref.document(doc_id).delete()
+            col_ref.document(doc_id).delete(option=option)
 
     @overload
     def update(
-        self, instance: Model, field_updates: dict[str, Any], *, parent: Model | None = None
+        self,
+        instance: Model,
+        field_updates: dict[str, Any],
+        *,
+        parent: Model | None = None,
+        if_unchanged: bool | datetime.datetime = False,
     ) -> None: ...
     @overload
     def update(
@@ -385,6 +422,7 @@ class Cendry(_BaseCendry):
         field_updates: dict[str, Any],
         *,
         parent: Model | None = None,
+        if_unchanged: bool | datetime.datetime = False,
     ) -> None: ...
 
     def update(  # type: ignore[misc]
@@ -394,6 +432,7 @@ class Cendry(_BaseCendry):
         field_updates_or_none: dict[str, Any] | None = None,
         *,
         parent: Model | None = None,
+        if_unchanged: bool | datetime.datetime = False,
     ) -> None:
         """Partially update a document's fields.
 
@@ -402,6 +441,7 @@ class Cendry(_BaseCendry):
             field_updates_or_doc_id: Field updates dict (instance form) or doc ID (class form).
             field_updates_or_none: Field updates dict (class form only).
             parent: Parent document for subcollection updates.
+            if_unchanged: If True, only update if unchanged since last read. Accepts datetime.
 
         Raises:
             DocumentNotFoundError: If the document does not exist.
@@ -427,13 +467,15 @@ class Cendry(_BaseCendry):
             )
             for k, v in field_updates.items()
         }
+        instance_for_meta = instance_or_class if isinstance(instance_or_class, Model) else None
+        option = _resolve_precondition(if_unchanged, instance_for_meta)
         col_ref = self._get_collection_ref(model_class, parent)
         try:
-            write_result = col_ref.document(doc_id).update(resolved)
+            write_result = col_ref.document(doc_id).update(resolved, option=option)
         except NotFound as e:
             raise DocumentNotFoundError(model_class.__collection__, doc_id) from e
-        if isinstance(instance_or_class, Model):
-            _set_metadata(instance_or_class, update_time=write_result.update_time)
+        if instance_for_meta is not None:
+            _set_metadata(instance_for_meta, update_time=write_result.update_time)
 
     def refresh(self, instance: T, *, parent: Model | None = None) -> None:
         """Re-fetch a document from Firestore and update the instance in-place.
@@ -734,7 +776,13 @@ class AsyncCendry(_BaseCendry):
         return doc_ref.id  # type: ignore[no-any-return]
 
     @overload
-    async def delete(self, instance: Model, *, parent: Model | None = None) -> None: ...
+    async def delete(
+        self,
+        instance: Model,
+        *,
+        parent: Model | None = None,
+        if_unchanged: bool | datetime.datetime = False,
+    ) -> None: ...
     @overload
     async def delete(
         self,
@@ -743,6 +791,7 @@ class AsyncCendry(_BaseCendry):
         *,
         parent: Model | None = None,
         must_exist: bool = False,
+        if_unchanged: bool | datetime.datetime = False,
     ) -> None: ...
 
     async def delete(  # type: ignore[misc]
@@ -752,27 +801,35 @@ class AsyncCendry(_BaseCendry):
         *,
         parent: Model | None = None,
         must_exist: bool = False,
+        if_unchanged: bool | datetime.datetime = False,
     ) -> None:
         """Delete a document by instance or by class + ID."""
         if isinstance(instance_or_class, Model):
             if instance_or_class.id is None:
                 raise CendryError("Cannot delete a model instance with id=None")
+            option = _resolve_precondition(if_unchanged, instance_or_class)
             col_ref = self._get_collection_ref(type(instance_or_class), parent)
-            await col_ref.document(instance_or_class.id).delete()
+            await col_ref.document(instance_or_class.id).delete(option=option)
             _clear_metadata(instance_or_class)
         else:
             if doc_id is None:  # pragma: no cover
-                raise CendryError("doc_id is required when calling delete with a class")
+                raise CendryError("doc_id is required")  # pragma: no cover
+            option = _resolve_precondition(if_unchanged)
             col_ref = self._get_collection_ref(instance_or_class, parent)
             if must_exist:
                 doc = await col_ref.document(doc_id).get()
                 if not doc.exists:
                     raise DocumentNotFoundError(instance_or_class.__collection__, doc_id)
-            await col_ref.document(doc_id).delete()
+            await col_ref.document(doc_id).delete(option=option)
 
     @overload
     async def update(
-        self, instance: Model, field_updates: dict[str, Any], *, parent: Model | None = None
+        self,
+        instance: Model,
+        field_updates: dict[str, Any],
+        *,
+        parent: Model | None = None,
+        if_unchanged: bool | datetime.datetime = False,
     ) -> None: ...
     @overload
     async def update(
@@ -782,6 +839,7 @@ class AsyncCendry(_BaseCendry):
         field_updates: dict[str, Any],
         *,
         parent: Model | None = None,
+        if_unchanged: bool | datetime.datetime = False,
     ) -> None: ...
 
     async def update(  # type: ignore[misc]
@@ -791,6 +849,7 @@ class AsyncCendry(_BaseCendry):
         field_updates_or_none: dict[str, Any] | None = None,
         *,
         parent: Model | None = None,
+        if_unchanged: bool | datetime.datetime = False,
     ) -> None:
         """Partially update a document's fields."""
         if isinstance(instance_or_class, Model):
@@ -814,13 +873,15 @@ class AsyncCendry(_BaseCendry):
             )
             for k, v in field_updates.items()
         }
+        instance_for_meta = instance_or_class if isinstance(instance_or_class, Model) else None
+        option = _resolve_precondition(if_unchanged, instance_for_meta)
         col_ref = self._get_collection_ref(model_class, parent)
         try:
-            write_result = await col_ref.document(doc_id).update(resolved)
+            write_result = await col_ref.document(doc_id).update(resolved, option=option)
         except NotFound as e:
             raise DocumentNotFoundError(model_class.__collection__, doc_id) from e
-        if isinstance(instance_or_class, Model):
-            _set_metadata(instance_or_class, update_time=write_result.update_time)
+        if instance_for_meta is not None:
+            _set_metadata(instance_for_meta, update_time=write_result.update_time)
 
     async def refresh(self, instance: T, *, parent: Model | None = None) -> None:
         """Re-fetch a document from Firestore and update the instance in-place."""
