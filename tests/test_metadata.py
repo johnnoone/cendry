@@ -42,6 +42,19 @@ def test_set_metadata_updates_existing():
     assert meta.create_time == t1  # not overwritten
 
 
+def test_set_metadata_updates_create_time():
+    city = City(**SF_DATA, id="SF")
+    t1 = datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
+    t2 = datetime.datetime(2026, 6, 1, tzinfo=datetime.UTC)
+
+    _set_metadata(city, update_time=t1, create_time=t1)
+    _set_metadata(city, create_time=t2)
+
+    meta = get_metadata(city)
+    assert meta.create_time == t2
+    assert meta.update_time == t1  # not overwritten
+
+
 def test_clear_metadata():
     city = City(**SF_DATA, id="SF")
     _set_metadata(city, update_time=datetime.datetime.now(tz=datetime.UTC))

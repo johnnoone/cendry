@@ -163,3 +163,64 @@ async def test_async_query_iteration_uses_registry():
     results = [item async for item in q]
     assert len(results) == 1
     assert results[0].name == "San Francisco"
+
+
+# --- Projection queries ---
+
+
+def test_query_select_calls_firestore_select():
+    mock_query = MagicMock()
+    q = Query(mock_query, City, lambda q, f: q)
+    q.select("name", "state")
+    mock_query.select.assert_called_once_with(["name", "state"])
+
+
+def test_query_select_with_field_descriptor():
+    mock_query = MagicMock()
+    q = Query(mock_query, City, lambda q, f: q)
+    q.select(City.name, City.state)
+    mock_query.select.assert_called_once_with(["name", "state"])
+
+
+def test_query_select_preserves_registry():
+    custom = TypeRegistry()
+    mock_query = MagicMock()
+    q = Query(mock_query, City, lambda q, f: q, registry=custom)
+    projected = q.select("name")
+    assert projected._registry is custom
+
+
+def test_async_query_select():
+    mock_query = MagicMock()
+    q = AsyncQuery(mock_query, City, lambda q, f: q)
+    q.select("name")
+    mock_query.select.assert_called_once_with(["name"])
+
+
+# --- on_snapshot ---
+
+
+def test_query_on_snapshot():
+    docs = [make_mock_document("SF", SF_DATA)]
+    docs[0].update_time = None
+    docs[0].create_time = None
+
+    mock_query = MagicMock()
+    q = Query(mock_query, City, lambda q, f: q)
+
+    received = []
+
+    def callback(instances, changes, read_time):
+        received.append((instances, changes, read_time))
+
+    q.on_snapshot(callback)
+
+    # Simulate Firestore calling the wrapper
+    wrapper = mock_query.on_snapshot.call_args[0][0]
+    wrapper(docs, ["change1"], "2026-01-01")
+
+    assert len(received) == 1
+    instances, changes, _read_time = received[0]
+    assert len(instances) == 1
+    assert instances[0].name == "San Francisco"
+    assert changes == ["change1"]

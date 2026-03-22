@@ -425,8 +425,8 @@ Comprehensive feature-by-feature comparison. Green (✅) = supported, yellow (�
 | Get by ID | ✅ `Model.get_by_id()` | ✅ `doc_ref.get()` | ✅ `ctx.get()` | Cendry raises `DocumentNotFoundError` |
 | Find (None if missing) | ❌ Returns None | 🔶 Check `.exists` | ✅ `ctx.find()` | |
 | Batch get | ✅ `ndb.get_multi()` | ✅ `client.get_all()` | ✅ `ctx.get_many()` | |
-| Projection queries | ✅ `projection=[...]` | ✅ `select([...])` | ❌ | Fetch only specific fields — not yet in Cendry |
-| Distinct queries | ✅ `distinct_on=[...]` | ✅ Supported | ❌ | Deduplicate results — not yet in Cendry |
+| Projection queries | ✅ `projection=[...]` | ✅ `select([...])` | ✅ `query.select("name")` | Fetch only specific fields |
+| Distinct queries | ✅ `distinct_on=[...]` | ❌ Not in SDK | ❌ | Not supported by Firestore Python SDK |
 | Collection groups | ❌ | ✅ `collection_group()` | ✅ `ctx.select_group()` | NDB doesn't have this concept |
 
 ### Query & Filtering
@@ -476,7 +476,7 @@ Comprehensive feature-by-feature comparison. Green (✅) = supported, yellow (�
 |---------|-----|---------------|--------|-------|
 | Document metadata | ❌ | ✅ `DocumentSnapshot` attrs | ✅ `get_metadata()` | `update_time`, `create_time` |
 | Optimistic locking | ❌ Use transactions | ✅ `LastUpdateOption` | ✅ `if_unchanged=True` | Precondition-based |
-| Real-time listeners | ❌ | ✅ `on_snapshot()` | ❌ | Live updates — different paradigm |
+| Real-time listeners | ❌ | ✅ `on_snapshot()` | ✅ `query.on_snapshot(cb)` | Sync only (SDK limitation) |
 
 ### Async Support
 
@@ -511,12 +511,12 @@ Features from NDB or the Firestore SDK that Cendry could add in future versions:
 | Computed properties | NDB | Read-only fields derived from other fields | Medium |
 | Model hooks | NDB | `_pre_save`, `_post_save`, `_pre_delete`, `_post_delete` callbacks | Medium |
 | Property validators | NDB | `field(validator=fn)` for per-field validation | Medium |
-| Projection queries | Both | Fetch only specific fields | Medium |
+| ~~Projection queries~~ | ~~Both~~ | ~~Fetch only specific fields~~ | ✅ Done |
 | Cursor export | Both | Expose pagination cursor tokens for stateless paging | Low |
 | `allocate_ids()` | Both | Pre-allocate document IDs | Low |
-| Real-time listeners | SDK | `on_snapshot()` for live updates | Hard |
+| ~~Real-time listeners~~ | ~~SDK~~ | ~~`on_snapshot()` for live updates~~ | ✅ Done (sync) |
 | Expando models | Both | Dynamic properties not in schema | Medium |
-| Distinct queries | Both | Deduplicate results | Low |
+| ~~Distinct queries~~ | ~~Both~~ | ~~Not in Firestore Python SDK~~ | N/A |
 
 !!! info "Intentional differences"
     Some NDB features are intentionally **not** in Cendry:

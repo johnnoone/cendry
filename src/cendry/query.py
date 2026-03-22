@@ -130,6 +130,23 @@ class Query[T: Model]:
             _limit=self._limit_repr,
         )
 
+    def select(self, *field_paths: str | FieldDescriptor) -> "Query[T]":
+        """Project only specific fields. Returns a new Query.
+
+        Args:
+            field_paths: Field names or FieldDescriptor instances.
+        """
+        paths = [f.alias if isinstance(f, FieldDescriptor) else f for f in field_paths]
+        return Query(
+            self._query.select(paths),
+            self._model_class,
+            self._apply_filter,
+            registry=self._registry,
+            _filters=self._filters_repr,
+            _order_by=self._order_by_repr,
+            _limit=self._limit_repr,
+        )
+
     def limit(self, n: int) -> "Query[T]":
         """Limit the number of results. Returns a new Query."""
         return Query(
@@ -195,6 +212,30 @@ class Query[T: Model]:
             if len(items) < page_size:
                 break
             query = query.start_after(last_doc)
+
+    def on_snapshot(self, callback: Any) -> Any:
+        """Listen for real-time updates matching this query.
+
+        The callback receives ``(instances, changes, read_time)`` where
+        ``instances`` is a list of deserialized model instances.
+
+        Returns a ``Watch`` object with an ``unsubscribe()`` method.
+
+        Note:
+            Sync only — async listeners are not supported by the Firestore SDK.
+        """
+        model_class = self._model_class
+        registry = self._registry
+
+        def _wrapper(docs: Any, changes: Any, read_time: Any) -> None:
+            instances = []
+            for doc in docs:
+                instance = deserialize(model_class, doc.id, doc.to_dict(), registry=registry)
+                _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
+                instances.append(instance)
+            callback(instances, changes, read_time)
+
+        return self._query.on_snapshot(_wrapper)
 
 
 class AsyncQuery[T: Model]:
@@ -278,6 +319,19 @@ class AsyncQuery[T: Model]:
             registry=self._registry,
             _filters=self._filters_repr,
             _order_by=new_orders,
+            _limit=self._limit_repr,
+        )
+
+    def select(self, *field_paths: str | FieldDescriptor) -> "AsyncQuery[T]":
+        """Project only specific fields. Returns a new AsyncQuery."""
+        paths = [f.alias if isinstance(f, FieldDescriptor) else f for f in field_paths]
+        return AsyncQuery(
+            self._query.select(paths),
+            self._model_class,
+            self._apply_filter,
+            registry=self._registry,
+            _filters=self._filters_repr,
+            _order_by=self._order_by_repr,
             _limit=self._limit_repr,
         )
 

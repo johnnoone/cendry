@@ -496,7 +496,39 @@ class Cendry(_BaseCendry):
         for f in dataclasses.fields(instance):
             setattr(instance, f.name, getattr(fresh, f.name))
         _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
-        _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
+
+    def on_snapshot(
+        self,
+        model_class: type[T],
+        doc_id: str,
+        callback: Callable[..., None],
+        *,
+        parent: Model | None = None,
+    ) -> Any:
+        """Listen for real-time updates on a single document.
+
+        The callback receives ``(instance, changes, read_time)`` where
+        ``instance`` is the deserialized model (or None if deleted).
+
+        Returns a ``Watch`` object with an ``unsubscribe()`` method.
+
+        Note:
+            Sync only — async listeners are not supported by the Firestore SDK.
+        """
+        col_ref = self._get_collection_ref(model_class, parent)
+        doc_ref = col_ref.document(doc_id)
+        registry = self.type_registry
+
+        def _wrapper(doc_snapshot: Any, changes: Any, read_time: Any) -> None:
+            if doc_snapshot and doc_snapshot[0].exists:
+                snap = doc_snapshot[0]
+                instance = deserialize(model_class, snap.id, snap.to_dict(), registry=registry)
+                _set_metadata(instance, update_time=snap.update_time, create_time=snap.create_time)
+                callback(instance, changes, read_time)
+            else:
+                callback(None, changes, read_time)
+
+        return doc_ref.on_snapshot(_wrapper)
 
     def batch(self) -> "Batch":
         """Create a batch writer for atomic multi-document operations."""

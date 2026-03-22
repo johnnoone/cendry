@@ -1761,3 +1761,50 @@ def test_if_unchanged_no_metadata_raises(mock_firestore_client: MagicMock):
 
     with pytest.raises(CendryError, match="No metadata"):
         ctx.update(city, {"population": 900_000}, if_unchanged=True)
+
+
+# --- on_snapshot ---
+
+
+def test_on_snapshot_document(mock_firestore_client: MagicMock):
+    doc_ref = mock_firestore_client.collection.return_value.document.return_value
+
+    ctx = Cendry(client=mock_firestore_client)
+    received = []
+
+    def callback(instance, changes, read_time):
+        received.append(instance)
+
+    ctx.on_snapshot(City, "SF", callback)
+
+    # Verify Firestore's on_snapshot was called on the doc ref
+    doc_ref.on_snapshot.assert_called_once()
+
+    # Simulate callback with a snapshot
+    wrapper = doc_ref.on_snapshot.call_args[0][0]
+    doc = make_mock_document("SF", SF_DATA)
+    doc.update_time = None
+    doc.create_time = None
+    wrapper([doc], [], None)
+
+    assert len(received) == 1
+    assert received[0].name == "San Francisco"
+
+
+def test_on_snapshot_document_deleted(mock_firestore_client: MagicMock):
+    doc_ref = mock_firestore_client.collection.return_value.document.return_value
+
+    ctx = Cendry(client=mock_firestore_client)
+    received = []
+
+    def callback(instance, changes, read_time):
+        received.append(instance)
+
+    ctx.on_snapshot(City, "SF", callback)
+
+    wrapper = doc_ref.on_snapshot.call_args[0][0]
+    doc = make_mock_document("SF", {}, exists=False)
+    wrapper([doc], [], None)
+
+    assert len(received) == 1
+    assert received[0] is None
