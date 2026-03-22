@@ -142,9 +142,7 @@ class _BaseCendry:
     def _cursor_value(self, cursor: dict[str, Any] | Model) -> dict[str, Any]:
         """Convert a cursor to a dict for Firestore."""
         if isinstance(cursor, Model):
-            d: dict[str, Any] = dataclasses.asdict(cursor)
-            d.pop("id", None)
-            return d
+            return to_dict(cursor, by_alias=True, registry=self.type_registry)
         return cursor
 
 
