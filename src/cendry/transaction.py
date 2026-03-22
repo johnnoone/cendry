@@ -3,6 +3,7 @@ from typing import Any, Self, TypeVar
 
 from ._writes import WritesMixin
 from .exceptions import DocumentNotFoundError
+from .metadata import _set_metadata
 from .model import Model
 from .serialize import deserialize
 from .types import TypeRegistry
@@ -48,7 +49,9 @@ class Txn(WritesMixin):
         doc = col_ref.document(doc_id).get(transaction=self._transaction)
         if not doc.exists:
             raise DocumentNotFoundError(model_class.__collection__, doc_id)
-        return deserialize(model_class, doc.id, doc.to_dict(), registry=self._registry)
+        result = deserialize(model_class, doc.id, doc.to_dict(), registry=self._registry)
+        _set_metadata(result, update_time=doc.update_time, create_time=doc.create_time)
+        return result
 
     def find(self, model_class: type[T], doc_id: str, *, parent: Model | None = None) -> T | None:
         """Read a document within the transaction, returning None if not found."""
@@ -56,7 +59,9 @@ class Txn(WritesMixin):
         doc = col_ref.document(doc_id).get(transaction=self._transaction)
         if not doc.exists:
             return None
-        return deserialize(model_class, doc.id, doc.to_dict(), registry=self._registry)
+        result = deserialize(model_class, doc.id, doc.to_dict(), registry=self._registry)
+        _set_metadata(result, update_time=doc.update_time, create_time=doc.create_time)
+        return result
 
 
 class AsyncTxn(WritesMixin):
@@ -94,7 +99,9 @@ class AsyncTxn(WritesMixin):
         doc = await col_ref.document(doc_id).get(transaction=self._transaction)
         if not doc.exists:
             raise DocumentNotFoundError(model_class.__collection__, doc_id)
-        return deserialize(model_class, doc.id, doc.to_dict(), registry=self._registry)
+        result = deserialize(model_class, doc.id, doc.to_dict(), registry=self._registry)
+        _set_metadata(result, update_time=doc.update_time, create_time=doc.create_time)
+        return result
 
     async def find(
         self, model_class: type[T], doc_id: str, *, parent: Model | None = None
@@ -104,4 +111,6 @@ class AsyncTxn(WritesMixin):
         doc = await col_ref.document(doc_id).get(transaction=self._transaction)
         if not doc.exists:
             return None
-        return deserialize(model_class, doc.id, doc.to_dict(), registry=self._registry)
+        result = deserialize(model_class, doc.id, doc.to_dict(), registry=self._registry)
+        _set_metadata(result, update_time=doc.update_time, create_time=doc.create_time)
+        return result

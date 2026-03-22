@@ -3,6 +3,7 @@ from typing import Any
 
 from .exceptions import CendryError, DocumentNotFoundError
 from .model import FieldDescriptor, Model
+from .metadata import _set_metadata
 from .serialize import deserialize
 from .types import TypeRegistry, default_registry
 
@@ -82,7 +83,11 @@ class Query[T: Model]:
 
     def __iter__(self) -> Iterator[T]:
         for doc in self._query.stream():
-            yield deserialize(self._model_class, doc.id, doc.to_dict(), registry=self._registry)
+            instance = deserialize(
+                self._model_class, doc.id, doc.to_dict(), registry=self._registry
+            )
+            _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
+            yield instance
 
     def filter(self, *filters: Any) -> "Query[T]":
         """Add filters to the query. Returns a new Query."""
@@ -179,9 +184,11 @@ class Query[T: Model]:
             last_doc = None
             for doc in query.limit(page_size).stream():
                 last_doc = doc
-                items.append(
-                    deserialize(self._model_class, doc.id, doc.to_dict(), registry=self._registry)
+                instance = deserialize(
+                    self._model_class, doc.id, doc.to_dict(), registry=self._registry
                 )
+                _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
+                items.append(instance)
             if not items:
                 break
             yield items
@@ -227,7 +234,11 @@ class AsyncQuery[T: Model]:
 
     async def __aiter__(self) -> AsyncIterator[T]:
         async for doc in self._query.stream():
-            yield deserialize(self._model_class, doc.id, doc.to_dict(), registry=self._registry)
+            instance = deserialize(
+                self._model_class, doc.id, doc.to_dict(), registry=self._registry
+            )
+            _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
+            yield instance
 
     def filter(self, *filters: Any) -> "AsyncQuery[T]":
         """Add filters to the query. Returns a new AsyncQuery."""
@@ -327,9 +338,11 @@ class AsyncQuery[T: Model]:
             last_doc = None
             async for doc in query.limit(page_size).stream():
                 last_doc = doc
-                items.append(
-                    deserialize(self._model_class, doc.id, doc.to_dict(), registry=self._registry)
+                instance = deserialize(
+                    self._model_class, doc.id, doc.to_dict(), registry=self._registry
                 )
+                _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
+                items.append(instance)
             if not items:
                 break
             yield items
