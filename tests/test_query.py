@@ -168,33 +168,166 @@ async def test_async_query_iteration_uses_registry():
 # --- Projection queries ---
 
 
-def test_query_select_calls_firestore_select():
+def test_query_project_calls_firestore_select():
     mock_query = MagicMock()
     q = Query(mock_query, City, lambda q, f: q)
-    q.select("name", "state")
+    q.project("name", "state")
     mock_query.select.assert_called_once_with(["name", "state"])
 
 
-def test_query_select_with_field_descriptor():
+def test_query_project_with_field_descriptor():
     mock_query = MagicMock()
     q = Query(mock_query, City, lambda q, f: q)
-    q.select(City.name, City.state)
+    q.project(City.name, City.state)
     mock_query.select.assert_called_once_with(["name", "state"])
 
 
-def test_query_select_preserves_registry():
-    custom = TypeRegistry()
+def test_query_project_returns_projected_query():
+    from cendry.query import ProjectedQuery
+
     mock_query = MagicMock()
-    q = Query(mock_query, City, lambda q, f: q, registry=custom)
-    projected = q.select("name")
-    assert projected._registry is custom
+    q = Query(mock_query, City, lambda q, f: q)
+    result = q.project("name")
+    assert isinstance(result, ProjectedQuery)
 
 
-def test_async_query_select():
+def test_projected_query_iterates_dicts():
+    from cendry.query import ProjectedQuery
+
+    docs = [make_mock_document("SF", {"name": "San Francisco"})]
+    mock_query = MagicMock()
+    mock_query.stream.return_value = iter(docs)
+
+    pq = ProjectedQuery(mock_query)
+    results = list(pq)
+    assert len(results) == 1
+    assert results[0]["name"] == "San Francisco"
+    assert results[0]["id"] == "SF"
+
+
+def test_async_query_project():
+    from cendry.query import AsyncProjectedQuery
+
     mock_query = MagicMock()
     q = AsyncQuery(mock_query, City, lambda q, f: q)
-    q.select("name")
-    mock_query.select.assert_called_once_with(["name"])
+    result = q.project("name")
+    assert isinstance(result, AsyncProjectedQuery)
+
+
+def test_projected_query_to_list():
+    from cendry.query import ProjectedQuery
+
+    docs = [
+        make_mock_document("SF", {"name": "SF"}),
+        make_mock_document("LA", {"name": "LA"}),
+    ]
+    mock_query = MagicMock()
+    mock_query.stream.return_value = iter(docs)
+
+    pq = ProjectedQuery(mock_query)
+    results = pq.to_list()
+    assert len(results) == 2
+    assert results[0]["id"] == "SF"
+
+
+def test_projected_query_first():
+    from cendry.query import ProjectedQuery
+
+    docs = [make_mock_document("SF", {"name": "SF"})]
+    mock_query = MagicMock()
+    mock_query.limit.return_value = mock_query
+    mock_query.stream.return_value = iter(docs)
+
+    pq = ProjectedQuery(mock_query)
+    result = pq.first()
+    assert result is not None
+    assert result["name"] == "SF"
+
+
+def test_projected_query_first_empty():
+    from cendry.query import ProjectedQuery
+
+    mock_query = MagicMock()
+    mock_query.limit.return_value = mock_query
+    mock_query.stream.return_value = iter([])
+
+    pq = ProjectedQuery(mock_query)
+    assert pq.first() is None
+
+
+@pytest.mark.anyio
+async def test_async_projected_query_iterates():
+    from cendry.query import AsyncProjectedQuery
+
+    docs = [make_mock_document("SF", {"name": "SF"})]
+    mock_query = MagicMock()
+
+    async def mock_stream():
+        for d in docs:
+            yield d
+
+    mock_query.stream = mock_stream
+
+    pq = AsyncProjectedQuery(mock_query)
+    results = [item async for item in pq]
+    assert len(results) == 1
+    assert results[0]["name"] == "SF"
+    assert results[0]["id"] == "SF"
+
+
+@pytest.mark.anyio
+async def test_async_projected_query_to_list():
+    from cendry.query import AsyncProjectedQuery
+
+    docs = [make_mock_document("SF", {"name": "SF"})]
+    mock_query = MagicMock()
+
+    async def mock_stream():
+        for d in docs:
+            yield d
+
+    mock_query.stream = mock_stream
+
+    pq = AsyncProjectedQuery(mock_query)
+    results = await pq.to_list()
+    assert len(results) == 1
+
+
+@pytest.mark.anyio
+async def test_async_projected_query_first():
+    from cendry.query import AsyncProjectedQuery
+
+    docs = [make_mock_document("SF", {"name": "SF"})]
+    mock_query = MagicMock()
+    mock_query.limit.return_value = mock_query
+
+    async def mock_stream():
+        for d in docs:
+            yield d
+
+    mock_query.stream = mock_stream
+
+    pq = AsyncProjectedQuery(mock_query)
+    result = await pq.first()
+    assert result is not None
+    assert result["name"] == "SF"
+
+
+@pytest.mark.anyio
+async def test_async_projected_query_first_empty():
+    from cendry.query import AsyncProjectedQuery
+
+    mock_query = MagicMock()
+    mock_query.limit.return_value = mock_query
+
+    async def mock_stream():
+        return
+        yield  # make it an async generator
+
+    mock_query.stream = mock_stream
+
+    pq = AsyncProjectedQuery(mock_query)
+    assert await pq.first() is None
 
 
 # --- on_snapshot ---

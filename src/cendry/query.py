@@ -130,22 +130,14 @@ class Query[T: Model]:
             _limit=self._limit_repr,
         )
 
-    def select(self, *field_paths: str | FieldDescriptor) -> "Query[T]":
-        """Project only specific fields. Returns a new Query.
+    def project(self, *field_paths: str | FieldDescriptor) -> "ProjectedQuery":
+        """Project only specific fields. Returns a ProjectedQuery that yields dicts.
 
         Args:
             field_paths: Field names or FieldDescriptor instances.
         """
         paths = [f.alias if isinstance(f, FieldDescriptor) else f for f in field_paths]
-        return Query(
-            self._query.select(paths),
-            self._model_class,
-            self._apply_filter,
-            registry=self._registry,
-            _filters=self._filters_repr,
-            _order_by=self._order_by_repr,
-            _limit=self._limit_repr,
-        )
+        return ProjectedQuery(self._query.select(paths))
 
     def limit(self, n: int) -> "Query[T]":
         """Limit the number of results. Returns a new Query."""
@@ -322,18 +314,10 @@ class AsyncQuery[T: Model]:
             _limit=self._limit_repr,
         )
 
-    def select(self, *field_paths: str | FieldDescriptor) -> "AsyncQuery[T]":
-        """Project only specific fields. Returns a new AsyncQuery."""
+    def project(self, *field_paths: str | FieldDescriptor) -> "AsyncProjectedQuery":
+        """Project only specific fields. Returns an AsyncProjectedQuery that yields dicts."""
         paths = [f.alias if isinstance(f, FieldDescriptor) else f for f in field_paths]
-        return AsyncQuery(
-            self._query.select(paths),
-            self._model_class,
-            self._apply_filter,
-            registry=self._registry,
-            _filters=self._filters_repr,
-            _order_by=self._order_by_repr,
-            _limit=self._limit_repr,
-        )
+        return AsyncProjectedQuery(self._query.select(paths))
 
     def limit(self, n: int) -> "AsyncQuery[T]":
         """Limit the number of results. Returns a new AsyncQuery."""
@@ -403,3 +387,55 @@ class AsyncQuery[T: Model]:
             if len(items) < page_size:
                 break
             query = query.start_after(last_doc)
+
+
+class ProjectedQuery:
+    """Result of a projection query — iterates ``dict[str, Any]`` instead of model instances.
+
+    Returned by ``Query.project()``. Only the projected fields are present in each dict.
+    """
+
+    def __init__(self, firestore_query: Any) -> None:
+        self._query = firestore_query
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        for doc in self._query.stream():
+            data = doc.to_dict()
+            data["id"] = doc.id
+            yield data
+
+    def to_list(self) -> list[dict[str, Any]]:
+        """Fetch all matching documents as dicts."""
+        return list(self)
+
+    def first(self) -> dict[str, Any] | None:
+        """Fetch the first matching document, or None."""
+        for item in ProjectedQuery(self._query.limit(1)):
+            return item
+        return None
+
+
+class AsyncProjectedQuery:
+    """Async result of a projection query — iterates ``dict[str, Any]``.
+
+    Returned by ``AsyncQuery.project()``. Only the projected fields are present in each dict.
+    """
+
+    def __init__(self, firestore_query: Any) -> None:
+        self._query = firestore_query
+
+    async def __aiter__(self) -> AsyncIterator[dict[str, Any]]:
+        async for doc in self._query.stream():
+            data = doc.to_dict()
+            data["id"] = doc.id
+            yield data
+
+    async def to_list(self) -> list[dict[str, Any]]:
+        """Fetch all matching documents as dicts."""
+        return [item async for item in self]
+
+    async def first(self) -> dict[str, Any] | None:
+        """Fetch the first matching document, or None."""
+        async for item in AsyncProjectedQuery(self._query.limit(1)):
+            return item
+        return None

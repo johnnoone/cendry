@@ -16,7 +16,7 @@ from .exceptions import CendryError, DocumentAlreadyExistsError, DocumentNotFoun
 from .filters import And, FieldFilter, Or
 from .metadata import DocumentMetadata, get_metadata
 from .model import Field, FieldDescriptor, Map, Model, field
-from .query import Asc, AsyncQuery, Desc, Query
+from .query import Asc, AsyncProjectedQuery, AsyncQuery, Desc, ProjectedQuery, Query
 from .serialize import from_dict, to_dict
 from .transaction import AsyncTxn, Txn
 from .types import BaseTypeHandler, TypeHandler, TypeRegistry, register_type
@@ -30,6 +30,7 @@ __all__ = [
     "Asc",
     "AsyncBatch",
     "AsyncCendry",
+    "AsyncProjectedQuery",
     "AsyncQuery",
     "AsyncTxn",
     "BaseTypeHandler",
@@ -49,6 +50,7 @@ __all__ = [
     "Minimum",
     "Model",
     "Or",
+    "ProjectedQuery",
     "Query",
     "Txn",
     "TypeHandler",
