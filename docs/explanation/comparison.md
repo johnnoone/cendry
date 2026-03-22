@@ -395,3 +395,132 @@ Side-by-side comparison of common use cases across three approaches:
 | **Async** | Not supported | `AsyncClient` | `AsyncCendry` |
 | **IDE support** | Minimal | None | Full autocomplete + type checking |
 | **Status** | Legacy — Datastore only | Active — low-level | Active — typed ODM |
+
+---
+
+## Complete feature matrix
+
+Comprehensive feature-by-feature comparison. Green (✅) = supported, yellow (🔶) = partial, red (❌) = not supported.
+
+### Model & Schema
+
+| Feature | NDB | Firestore SDK | Cendry | Notes |
+|---------|-----|---------------|--------|-------|
+| Typed model classes | 🔶 `ndb.Model` (no annotations) | ❌ Raw dicts | ✅ `Model` + `Field[T]` | Cendry validates types at class definition |
+| Nested structures | ✅ `StructuredProperty` | 🔶 Nested dicts | ✅ `Map` class | Cendry maps are typed with IDE support |
+| Field defaults | ✅ `default=` | N/A | ✅ `field(default=)` | |
+| Field aliases | ❌ | N/A | ✅ `field(alias=)` | Firestore name ≠ Python name |
+| Enum fields | ❌ | ❌ Manual | ✅ `Field[MyEnum]` | Auto-converts by value or name |
+| Repeated/list fields | ✅ `repeated=True` | ✅ Arrays | ✅ `Field[list[str]]` | |
+| Computed properties | ✅ `ComputedProperty` | ❌ | ❌ | Derived read-only fields — not yet in Cendry |
+| Expando (dynamic fields) | ✅ `Expando` | ✅ Any dict key | ❌ | Intentional — Cendry favors typed schemas |
+| Property validators | ✅ `validator=fn` | ❌ | ❌ | Per-field validation callbacks — not yet in Cendry |
+| Custom type handlers | ❌ | ❌ | ✅ `register_type()` | Serialize/deserialize custom types |
+| Type validation at definition | ❌ | ❌ | ✅ `TypeRegistry` | Catches invalid types before runtime |
+
+### Read Operations
+
+| Feature | NDB | Firestore SDK | Cendry | Notes |
+|---------|-----|---------------|--------|-------|
+| Get by ID | ✅ `Model.get_by_id()` | ✅ `doc_ref.get()` | ✅ `ctx.get()` | Cendry raises `DocumentNotFoundError` |
+| Find (None if missing) | ❌ Returns None | 🔶 Check `.exists` | ✅ `ctx.find()` | |
+| Batch get | ✅ `ndb.get_multi()` | ✅ `client.get_all()` | ✅ `ctx.get_many()` | |
+| Projection queries | ✅ `projection=[...]` | ✅ `select([...])` | ❌ | Fetch only specific fields — not yet in Cendry |
+| Distinct queries | ✅ `distinct_on=[...]` | ✅ Supported | ❌ | Deduplicate results — not yet in Cendry |
+| Collection groups | ❌ | ✅ `collection_group()` | ✅ `ctx.select_group()` | NDB doesn't have this concept |
+
+### Query & Filtering
+
+| Feature | NDB | Firestore SDK | Cendry | Notes |
+|---------|-----|---------------|--------|-------|
+| Python operators | ✅ `City.state == "CA"` | ❌ Strings only | ✅ `City.state == "CA"` | |
+| Composite filters (AND/OR) | 🔶 AND only | ✅ `And`/`Or` | ✅ `And`/`Or` + `&`/`|` | |
+| Chainable queries | ❌ | ❌ | ✅ `.filter().order_by().limit()` | Immutable query builder |
+| Ordering | ✅ `.order()` | ✅ `.order_by()` | ✅ `.order_by(City.pop.desc())` | |
+| Limit | ✅ `.fetch(limit)` | ✅ `.limit()` | ✅ `.limit()` | |
+| Pagination | ✅ Cursor-based | ✅ Cursor-based | ✅ `.paginate(page_size)` | Cendry doesn't export cursor tokens yet |
+| Count | ❌ Must fetch all | ✅ `.count()` | ✅ `.count()` | Firestore aggregation |
+| Exists check | ❌ | ❌ Manual | ✅ `.exists()` | |
+| First result | ❌ `.fetch(1)` | ❌ Manual | ✅ `.first()` | |
+| Exactly one | ❌ | ❌ Manual | ✅ `.one()` | Raises if 0 or >1 |
+| Copy-pasteable repr | ❌ | ❌ | ✅ | All queries produce valid Python repr |
+
+### Write Operations
+
+| Feature | NDB | Firestore SDK | Cendry | Notes |
+|---------|-----|---------------|--------|-------|
+| Save (upsert) | ✅ `entity.put()` | ✅ `doc_ref.set()` | ✅ `ctx.save()` | Returns doc ID |
+| Create (insert only) | ❌ | ✅ `doc_ref.create()` | ✅ `ctx.create()` | Raises on duplicate |
+| Partial update | ❌ Full overwrite | ✅ `doc_ref.update()` | ✅ `ctx.update()` | Dot-notation, transforms |
+| Delete | ✅ `key.delete()` | ✅ `doc_ref.delete()` | ✅ `ctx.delete()` | `must_exist=` option |
+| Refresh (re-fetch in-place) | ❌ | ❌ | ✅ `ctx.refresh()` | Mutates instance |
+| Auto-generate ID | ✅ Automatic | ✅ `document()` | ✅ Auto + mutates `instance.id` | |
+| Field validation on write | ❌ | ❌ | ✅ `validate_required_fields` | |
+| Firestore transforms | N/A | ✅ `Increment`, etc. | ✅ Re-exported | `DELETE_FIELD`, `SERVER_TIMESTAMP`, etc. |
+
+### Batch & Transactions
+
+| Feature | NDB | Firestore SDK | Cendry | Notes |
+|---------|-----|---------------|--------|-------|
+| Batch writes | ✅ `ndb.put_multi()` | ✅ `WriteBatch` | ✅ `ctx.save_many()` / `ctx.batch()` | Max 500, atomic |
+| Batch delete | ✅ `ndb.delete_multi()` | ✅ `WriteBatch` | ✅ `ctx.delete_many()` | |
+| Mixed batch operations | ❌ | ✅ `WriteBatch` | ✅ `ctx.batch()` context manager | save + update + delete |
+| Transactions | ✅ `@ndb.transactional` | ✅ `@transactional` | ✅ `ctx.transaction(fn)` | Auto-retry on contention |
+| Transaction context manager | ❌ | ❌ | ✅ `with ctx.transaction():` | Single attempt |
+| Transaction reads | ✅ Implicit | ✅ `transaction.get()` | ✅ `txn.get()` / `txn.find()` | |
+| Read-only transactions | ❌ | ✅ `read_only=True` | ✅ `read_only=True` | |
+
+### Metadata & Concurrency
+
+| Feature | NDB | Firestore SDK | Cendry | Notes |
+|---------|-----|---------------|--------|-------|
+| Document metadata | ❌ | ✅ `DocumentSnapshot` attrs | ✅ `get_metadata()` | `update_time`, `create_time` |
+| Optimistic locking | ❌ Use transactions | ✅ `LastUpdateOption` | ✅ `if_unchanged=True` | Precondition-based |
+| Real-time listeners | ❌ | ✅ `on_snapshot()` | ❌ | Live updates — different paradigm |
+
+### Async Support
+
+| Feature | NDB | Firestore SDK | Cendry | Notes |
+|---------|-----|---------------|--------|-------|
+| Async client | ❌ | ✅ `AsyncClient` | ✅ `AsyncCendry` | |
+| Async reads | ❌ | ✅ | ✅ | `await ctx.get()` |
+| Async writes | ❌ | ✅ | ✅ | `await ctx.save()` |
+| Async queries | ❌ | ✅ `async for` | ✅ `async for` | |
+| Async batch | ❌ | ✅ `AsyncWriteBatch` | ✅ `AsyncBatch` | |
+| Async transactions | ❌ | ✅ `AsyncTransaction` | ✅ `AsyncTxn` | |
+
+### Developer Experience
+
+| Feature | NDB | Firestore SDK | Cendry | Notes |
+|---------|-----|---------------|--------|-------|
+| IDE autocomplete | 🔶 Minimal | ❌ | ✅ Full | `@dataclass_transform` |
+| Type checking (mypy/ty) | ❌ | 🔶 Partial stubs | ✅ Strict | Both mypy and ty pass |
+| Context manager | ❌ | ✅ | ✅ | Auto-closes client |
+| Subcollections | ❌ Different model | ✅ Nested refs | ✅ `parent=` parameter | |
+| Custom type handlers | ❌ | ❌ | ✅ `register_type()` | Pluggable serialize/deserialize |
+| Model hooks | ✅ `_pre_put_hook`, etc. | ❌ | ❌ | Lifecycle callbacks — not yet in Cendry |
+
+---
+
+## What Cendry doesn't have (yet)
+
+Features from NDB or the Firestore SDK that Cendry could add in future versions:
+
+| Feature | Origin | Description | Effort |
+|---------|--------|-------------|--------|
+| Computed properties | NDB | Read-only fields derived from other fields | Medium |
+| Model hooks | NDB | `_pre_save`, `_post_save`, `_pre_delete`, `_post_delete` callbacks | Medium |
+| Property validators | NDB | `field(validator=fn)` for per-field validation | Medium |
+| Projection queries | Both | Fetch only specific fields | Medium |
+| Cursor export | Both | Expose pagination cursor tokens for stateless paging | Low |
+| `allocate_ids()` | Both | Pre-allocate document IDs | Low |
+| Real-time listeners | SDK | `on_snapshot()` for live updates | Hard |
+| Expando models | Both | Dynamic properties not in schema | Medium |
+| Distinct queries | Both | Deduplicate results | Low |
+
+!!! info "Intentional differences"
+    Some NDB features are intentionally **not** in Cendry:
+
+    - **`Model.query()`** — Cendry uses the context as entry point, not the model class
+    - **`PickleProperty` / `GenericProperty`** — anti-pattern for document databases
+    - **Datastore mode** — Cendry targets Firestore Native mode only
