@@ -1,9 +1,9 @@
 import datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cendry.backends.firestore import FirestoreBackend
+from cendry.backends.firestore import FirestoreAsyncBackend, FirestoreBackend
 
 
 def _mock_client():
@@ -137,6 +137,16 @@ class TestFirestoreBackendWrites:
         backend.create_doc(doc_ref, {"name": "SF"})
         doc_ref.create.assert_called_once_with({"name": "SF"})
 
+    def test_create_doc_with_writer(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        doc_ref = MagicMock()
+        writer = MagicMock()
+
+        result = backend.create_doc(doc_ref, {"name": "SF"}, writer=writer)
+        writer.create.assert_called_once_with(doc_ref, {"name": "SF"})
+        assert result.update_time is None
+
     def test_update_doc(self):
         client = _mock_client()
         backend = FirestoreBackend(client=client)
@@ -159,6 +169,16 @@ class TestFirestoreBackendWrites:
 
         backend.update_doc(doc_ref, {"name": "LA"}, precondition=precond)
         doc_ref.update.assert_called_once_with({"name": "LA"}, option=precond)
+
+    def test_update_doc_with_writer(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        doc_ref = MagicMock()
+        writer = MagicMock()
+
+        result = backend.update_doc(doc_ref, {"name": "LA"}, writer=writer)
+        writer.update.assert_called_once_with(doc_ref, {"name": "LA"})
+        assert result.update_time is None
 
     def test_delete_doc(self):
         client = _mock_client()
@@ -378,3 +398,349 @@ class TestFirestoreBackendQueries:
         )
         backend.apply_composite(query, "AND", list(nested.filters))
         query.where.assert_called_once()
+
+    def test_apply_composite_or(self):
+        from cendry.model import FieldFilterResult
+
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        query = MagicMock()
+        filters = [
+            FieldFilterResult("state", "==", "CA"),
+            FieldFilterResult("state", "==", "NY"),
+        ]
+        backend.apply_composite(query, "OR", filters)
+        query.where.assert_called_once()
+
+    def test_resolve_filter_or(self):
+        from cendry import Or
+        from cendry.model import FieldFilterResult
+
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        f = Or(
+            FieldFilterResult("state", "==", "CA"),
+            FieldFilterResult("state", "==", "NY"),
+        )
+        result = backend._resolve_filter(f)
+        assert result is not None
+
+    def test_resolve_filter_and(self):
+        from cendry import And
+        from cendry.model import FieldFilterResult
+
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        f = And(
+            FieldFilterResult("state", "==", "CA"),
+            FieldFilterResult("population", ">", 100000),
+        )
+        result = backend._resolve_filter(f)
+        assert result is not None
+
+    def test_resolve_filter_passthrough(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        sentinel = object()
+        result = backend._resolve_filter(sentinel)
+        assert result is sentinel
+
+
+# --- Async Backend Tests ---
+
+
+def _async_mock_client():
+    return MagicMock()
+
+
+class TestFirestoreAsyncBackendRefs:
+    def test_get_collection_ref(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        backend.get_collection_ref("cities", None, None)
+        client.collection.assert_called_once_with("cities")
+
+    def test_get_collection_ref_with_parent(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        backend.get_collection_ref("neighborhoods", "cities", "SF")
+        client.collection.assert_called_once_with("cities")
+        client.collection.return_value.document.assert_called_once_with("SF")
+
+    def test_get_doc_ref_with_id(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        col_ref = MagicMock()
+        backend.get_doc_ref(col_ref, "SF")
+        col_ref.document.assert_called_once_with("SF")
+
+    def test_get_doc_ref_auto_id(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        col_ref = MagicMock()
+        backend.get_doc_ref(col_ref, None)
+        col_ref.document.assert_called_once_with()
+
+    def test_doc_ref_id(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        doc_ref = MagicMock()
+        doc_ref.id = "SF"
+        assert backend.doc_ref_id(doc_ref) == "SF"
+
+
+class TestFirestoreAsyncBackendReads:
+    @pytest.mark.anyio
+    async def test_get_doc_exists(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        mock_doc = _mock_doc("SF", {"name": "San Francisco"})
+        doc_ref = MagicMock()
+        doc_ref.get = AsyncMock(return_value=mock_doc)
+
+        result = await backend.get_doc(doc_ref)
+        assert result.exists is True
+        assert result.doc_id == "SF"
+        assert result.data == {"name": "San Francisco"}
+        assert result.raw is mock_doc
+
+    @pytest.mark.anyio
+    async def test_get_doc_not_exists(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        mock_doc = _mock_doc("NOPE", {}, exists=False)
+        doc_ref = MagicMock()
+        doc_ref.get = AsyncMock(return_value=mock_doc)
+
+        result = await backend.get_doc(doc_ref)
+        assert result.exists is False
+
+    @pytest.mark.anyio
+    async def test_get_doc_with_transaction(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        mock_doc = _mock_doc("SF", {"name": "SF"})
+        doc_ref = MagicMock()
+        doc_ref.get = AsyncMock(return_value=mock_doc)
+        txn = MagicMock()
+
+        await backend.get_doc(doc_ref, transaction=txn)
+        doc_ref.get.assert_called_once_with(transaction=txn)
+
+    @pytest.mark.anyio
+    async def test_get_all(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        doc1 = _mock_doc("SF", {"name": "SF"})
+        doc2 = _mock_doc("LA", {"name": "LA"})
+
+        async def mock_get_all(*args, **kwargs):
+            for doc in [doc1, doc2]:
+                yield doc
+
+        client.get_all = mock_get_all
+
+        results = [r async for r in backend.get_all([MagicMock(), MagicMock()])]
+        assert len(results) == 2
+        assert results[0].doc_id == "SF"
+        assert results[1].doc_id == "LA"
+
+
+class TestFirestoreAsyncBackendWrites:
+    @pytest.mark.anyio
+    async def test_set_doc(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        doc_ref = MagicMock()
+        mock_write = MagicMock()
+        mock_write.update_time = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
+        doc_ref.set = AsyncMock(return_value=mock_write)
+
+        result = await backend.set_doc(doc_ref, {"name": "SF"})
+        doc_ref.set.assert_called_once_with({"name": "SF"})
+        assert result.update_time is not None
+
+    @pytest.mark.anyio
+    async def test_set_doc_with_writer(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        doc_ref = MagicMock()
+        writer = MagicMock()
+
+        result = await backend.set_doc(doc_ref, {"name": "SF"}, writer=writer)
+        writer.set.assert_called_once_with(doc_ref, {"name": "SF"})
+        assert result.update_time is None
+
+    @pytest.mark.anyio
+    async def test_create_doc(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        doc_ref = MagicMock()
+        mock_write = MagicMock()
+        mock_write.update_time = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
+        doc_ref.create = AsyncMock(return_value=mock_write)
+
+        result = await backend.create_doc(doc_ref, {"name": "SF"})
+        doc_ref.create.assert_called_once_with({"name": "SF"})
+        assert result.update_time is not None
+
+    @pytest.mark.anyio
+    async def test_create_doc_with_writer(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        doc_ref = MagicMock()
+        writer = MagicMock()
+
+        result = await backend.create_doc(doc_ref, {"name": "SF"}, writer=writer)
+        writer.create.assert_called_once_with(doc_ref, {"name": "SF"})
+        assert result.update_time is None
+
+    @pytest.mark.anyio
+    async def test_create_doc_conflict_raises_already_exists(self):
+        from google.cloud.exceptions import Conflict
+
+        from cendry import DocumentAlreadyExistsError
+
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        doc_ref = MagicMock()
+        doc_ref.id = "SF"
+        doc_ref.create = AsyncMock(side_effect=Conflict("exists"))
+
+        with pytest.raises(DocumentAlreadyExistsError):
+            await backend.create_doc(doc_ref, {"name": "SF"})
+
+    @pytest.mark.anyio
+    async def test_update_doc(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        doc_ref = MagicMock()
+        mock_write = MagicMock()
+        mock_write.update_time = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
+        doc_ref.update = AsyncMock(return_value=mock_write)
+
+        result = await backend.update_doc(doc_ref, {"name": "LA"})
+        doc_ref.update.assert_called_once_with({"name": "LA"}, option=None)
+        assert result.update_time is not None
+
+    @pytest.mark.anyio
+    async def test_update_doc_with_writer(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        doc_ref = MagicMock()
+        writer = MagicMock()
+
+        result = await backend.update_doc(doc_ref, {"name": "LA"}, writer=writer)
+        writer.update.assert_called_once_with(doc_ref, {"name": "LA"})
+        assert result.update_time is None
+
+    @pytest.mark.anyio
+    async def test_update_doc_not_found_raises_doc_not_found(self):
+        from google.api_core.exceptions import NotFound
+
+        from cendry import DocumentNotFoundError
+
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        doc_ref = MagicMock()
+        doc_ref.id = "gone"
+        doc_ref.update = AsyncMock(side_effect=NotFound("gone"))
+
+        with pytest.raises(DocumentNotFoundError):
+            await backend.update_doc(doc_ref, {"name": "LA"})
+
+    @pytest.mark.anyio
+    async def test_delete_doc(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        doc_ref = MagicMock()
+        doc_ref.delete = AsyncMock()
+
+        await backend.delete_doc(doc_ref)
+        doc_ref.delete.assert_called_once_with(option=None)
+
+    @pytest.mark.anyio
+    async def test_delete_doc_with_writer(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        doc_ref = MagicMock()
+        writer = MagicMock()
+
+        await backend.delete_doc(doc_ref, writer=writer)
+        writer.delete.assert_called_once_with(doc_ref)
+
+    @pytest.mark.anyio
+    async def test_commit_batch(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        batch = MagicMock()
+        batch.commit = AsyncMock()
+
+        await backend.commit_batch(batch)
+        batch.commit.assert_called_once()
+
+    @pytest.mark.anyio
+    async def test_close(self):
+        client = _async_mock_client()
+        client.close = AsyncMock()
+        backend = FirestoreAsyncBackend(client=client)
+
+        await backend.close()
+        client.close.assert_called_once()
+
+
+class TestFirestoreAsyncBackendQueries:
+    def test_query(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        col_ref = MagicMock()
+        assert backend.query(col_ref) is col_ref
+
+    def test_query_group(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        backend.query_group("cities")
+        client.collection_group.assert_called_once_with("cities")
+
+    def test_apply_filter(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        query = MagicMock()
+        backend.apply_filter(query, "state", "==", "CA")
+        query.where.assert_called_once()
+
+    def test_apply_order(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        query = MagicMock()
+        backend.apply_order(query, "population", "DESCENDING")
+        query.order_by.assert_called_once_with("population", direction="DESCENDING")
+
+    @pytest.mark.anyio
+    async def test_stream(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        doc1 = _mock_doc("SF", {"name": "SF"})
+        doc2 = _mock_doc("LA", {"name": "LA"})
+
+        async def mock_stream():
+            for doc in [doc1, doc2]:
+                yield doc
+
+        query = MagicMock()
+        query.stream = mock_stream
+
+        results = [r async for r in backend.stream(query)]
+        assert len(results) == 2
+        assert results[0].doc_id == "SF"
+
+    @pytest.mark.anyio
+    async def test_count(self):
+        client = _async_mock_client()
+        backend = FirestoreAsyncBackend(client=client)
+        query = MagicMock()
+        agg_result = MagicMock()
+        agg_result.value = 42
+        query.count.return_value.get = AsyncMock(return_value=[[agg_result]])
+
+        assert await backend.count(query) == 42
