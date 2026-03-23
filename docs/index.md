@@ -130,6 +130,25 @@ pip install cendry
 
 ---
 
+## Migrating from Datastore mode?
+
+Cendry is a **Firestore Native mode ODM**. If your project is still on Firestore in Datastore mode, Cendry can help you migrate — define your models once, validate against existing data, then switch backends with a one-line change.
+
+```python
+# Step 1: Work with your existing Datastore data
+from cendry.backends.datastore import DatastoreBackend
+
+db = Cendry(backend=DatastoreBackend(project="my-project"))
+cities = db.select(City).to_list()  # reads from Datastore
+
+# Step 2: After migrating the database to Native mode
+db = Cendry()  # that's it — same models, same queries
+```
+
+The Datastore backend supports the common subset (CRUD, queries, batch, transactions) and raises clear errors for Native-only features — each one a reason to migrate. [Migration guide →](how-to/migrate-datastore-to-native.md)
+
+---
+
 ## Get started
 
 <div markdown>
