@@ -3,18 +3,11 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Self, TypeVar, overload
 
 if TYPE_CHECKING:
+    from .backend import AsyncBackend, Backend
     from .batch import AsyncBatch, Batch
     from .transaction import AsyncTxn, Txn
 
 import datetime
-
-from google.api_core.exceptions import NotFound
-from google.cloud.exceptions import Conflict
-from google.cloud.firestore import Client
-from google.cloud.firestore_v1._helpers import LastUpdateOption
-from google.cloud.firestore_v1.base_query import And as FsAnd
-from google.cloud.firestore_v1.base_query import FieldFilter as FsFieldFilter
-from google.cloud.firestore_v1.base_query import Or as FsOr
 
 from .exceptions import CendryError, DocumentAlreadyExistsError, DocumentNotFoundError
 from .filters import And, Or
@@ -41,37 +34,39 @@ def _check_batch_limit(n: int) -> None:
 
 
 def _resolve_precondition(
+    backend: "Backend | AsyncBackend",
     if_unchanged: bool | datetime.datetime,
     instance: Model | None = None,
-) -> LastUpdateOption | None:
-    """Resolve if_unchanged into a Firestore LastUpdateOption."""
+) -> Any:
+    """Resolve if_unchanged into a backend precondition."""
     if if_unchanged is False:
         return None
     if isinstance(if_unchanged, datetime.datetime):
-        return LastUpdateOption(if_unchanged)
+        return backend.make_precondition(if_unchanged)
     # if_unchanged=True — look up metadata
     if instance is None:  # pragma: no cover
         raise CendryError("if_unchanged=True requires an instance; use a datetime for class+ID")
     meta = get_metadata(instance)
     if meta.update_time is None:  # pragma: no cover
         raise CendryError("No update_time — cannot use if_unchanged")
-    return LastUpdateOption(meta.update_time)
+    return backend.make_precondition(meta.update_time)
 
 
 class _BaseCendry:
     """Shared logic for sync and async contexts."""
 
-    _client: Any
+    _backend: Any
     type_registry: TypeRegistry
 
     def _get_collection_ref(self, model_class: type[T], parent: Model | None = None) -> Any:
-        """Get a Firestore collection reference, optionally nested under a parent."""
+        """Get a collection reference, optionally nested under a parent."""
         if parent is not None:
             if parent.id is None:
                 raise CendryError("Parent model must have a non-None id")
-            parent_ref = self._client.collection(parent.__collection__).document(parent.id)
-            return parent_ref.collection(model_class.__collection__)
-        return self._client.collection(model_class.__collection__)
+            return self._backend.get_collection_ref(
+                model_class.__collection__, parent.__collection__, parent.id
+            )
+        return self._backend.get_collection_ref(model_class.__collection__, None, None)
 
     def _build_query(
         self,
@@ -87,58 +82,51 @@ class _BaseCendry:
         parent: Model | None = None,
         collection_group: bool = False,
     ) -> Any:
-        """Build a Firestore query from filters, ordering, and pagination."""
+        """Build a query from filters, ordering, and pagination."""
         if collection_group:
-            query = self._client.collection_group(model_class.__collection__)
+            query = self._backend.query_group(model_class.__collection__)
         else:
-            query = self._get_collection_ref(model_class, parent)
+            col_ref = self._get_collection_ref(model_class, parent)
+            query = self._backend.query(col_ref)
 
         for f in filters:
             query = self._apply_filter(query, f)
 
         if order_by:
             for o in order_by:
-                query = query.order_by(o.field, direction=o.direction)
+                query = self._backend.apply_order(query, o.field, o.direction)
 
         if limit is not None:
-            query = query.limit(limit)
+            query = self._backend.apply_limit(query, limit)
 
         if start_at is not None:
-            query = query.start_at(self._cursor_value(start_at))
+            query = self._backend.apply_cursor(query, "start_at", self._cursor_value(start_at))
         if start_after is not None:
-            query = query.start_after(self._cursor_value(start_after))
+            query = self._backend.apply_cursor(
+                query, "start_after", self._cursor_value(start_after)
+            )
         if end_at is not None:
-            query = query.end_at(self._cursor_value(end_at))
+            query = self._backend.apply_cursor(query, "end_at", self._cursor_value(end_at))
         if end_before is not None:
-            query = query.end_before(self._cursor_value(end_before))
+            query = self._backend.apply_cursor(query, "end_before", self._cursor_value(end_before))
 
         return query
 
     def _apply_filter(self, query: Any, f: Any) -> Any:
         """Apply a single filter or composite filter to a query."""
-        if isinstance(f, FsFieldFilter):
-            return query.where(filter=f)
         if isinstance(f, FieldFilterResult):
-            return query.where(filter=FsFieldFilter(f.field_name, f.op, f.value))
+            return self._backend.apply_filter(query, f.field_name, f.op, f.value)
         if isinstance(f, And):
-            fs_filters = [self._to_firestore_filter(sub) for sub in f.filters]
-            return query.where(filter=FsAnd(filters=fs_filters))
+            return self._backend.apply_composite(query, "AND", list(f.filters))
         if isinstance(f, Or):
-            fs_filters = [self._to_firestore_filter(sub) for sub in f.filters]
-            return query.where(filter=FsOr(filters=fs_filters))
-        raise CendryError(f"Unknown filter type: {type(f)}")
+            return self._backend.apply_composite(query, "OR", list(f.filters))
+        # Raw FieldFilter from google.cloud.firestore — pass through as a single-element
+        # composite to let the backend handle it
+        from google.cloud.firestore_v1.base_query import FieldFilter as FsFieldFilter
 
-    def _to_firestore_filter(self, f: Any) -> Any:
-        """Convert a cendry filter to a Firestore filter."""
         if isinstance(f, FsFieldFilter):
-            return f
-        if isinstance(f, FieldFilterResult):
-            return FsFieldFilter(f.field_name, f.op, f.value)
-        if isinstance(f, And):
-            return FsAnd(filters=[self._to_firestore_filter(sub) for sub in f.filters])
-        if isinstance(f, Or):
-            return FsOr(filters=[self._to_firestore_filter(sub) for sub in f.filters])
-        raise CendryError(f"Unknown filter type: {type(f)}")  # pragma: no cover
+            return self._backend.apply_composite(query, "AND", [f])
+        raise CendryError(f"Unknown filter type: {type(f)}")
 
     def _cursor_value(self, cursor: dict[str, Any] | Model) -> dict[str, Any]:
         """Convert a cursor to a dict for Firestore."""
@@ -152,23 +140,32 @@ class Cendry(_BaseCendry):
 
     Args:
         client: Optional Firestore Client. Uses default credentials if not provided.
+        backend: Optional Backend instance. Mutually exclusive with ``client``.
         type_registry: Optional TypeRegistry override. Uses the global default if not provided.
     """
 
     def __init__(
         self,
         *,
-        client: Client | None = None,
+        client: Any = None,
+        backend: "Backend | None" = None,
         type_registry: TypeRegistry | None = None,
     ) -> None:
-        self._client = client or Client()
+        if backend is not None and client is not None:
+            raise CendryError("Cannot specify both 'client' and 'backend'")
+        if backend is not None:
+            self._backend = backend
+        else:
+            from .backends.firestore import FirestoreBackend
+
+            self._backend = FirestoreBackend(client=client)
         self.type_registry = type_registry or default_registry
 
     def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *args: object) -> None:
-        self._client.close()
+        self._backend.close()
 
     def get(self, model_class: type[T], document_id: str, *, parent: Model | None = None) -> T:
         """Fetch a single document by ID.
@@ -185,10 +182,11 @@ class Cendry(_BaseCendry):
             DocumentNotFoundError: If the document does not exist.
         """
         col_ref = self._get_collection_ref(model_class, parent)
-        doc = col_ref.document(document_id).get()
+        doc_ref = self._backend.get_doc_ref(col_ref, document_id)
+        doc = self._backend.get_doc(doc_ref)
         if not doc.exists:
             raise DocumentNotFoundError(model_class.__collection__, document_id)
-        result = deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+        result = deserialize(model_class, doc.doc_id, doc.data, registry=self.type_registry)
         _set_metadata(result, update_time=doc.update_time, create_time=doc.create_time)
         return result
 
@@ -206,10 +204,11 @@ class Cendry(_BaseCendry):
             The deserialized model instance, or None.
         """
         col_ref = self._get_collection_ref(model_class, parent)
-        doc = col_ref.document(document_id).get()
+        doc_ref = self._backend.get_doc_ref(col_ref, document_id)
+        doc = self._backend.get_doc(doc_ref)
         if not doc.exists:
             return None
-        result = deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+        result = deserialize(model_class, doc.doc_id, doc.data, registry=self.type_registry)
         _set_metadata(result, update_time=doc.update_time, create_time=doc.create_time)
         return result
 
@@ -234,15 +233,15 @@ class Cendry(_BaseCendry):
             DocumentNotFoundError: If any documents are missing.
         """
         col_ref = self._get_collection_ref(model_class, parent)
-        doc_refs = [col_ref.document(doc_id) for doc_id in document_ids]
+        doc_refs = [self._backend.get_doc_ref(col_ref, doc_id) for doc_id in document_ids]
         results: list[T] = []
         missing: list[str] = []
-        for doc in self._client.get_all(doc_refs):
+        for doc in self._backend.get_all(doc_refs):
             if not doc.exists:
-                missing.append(doc.id)
+                missing.append(doc.doc_id)
             else:
                 instance = deserialize(
-                    model_class, doc.id, doc.to_dict(), registry=self.type_registry
+                    model_class, doc.doc_id, doc.data, registry=self.type_registry
                 )
                 _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
                 results.append(instance)
@@ -313,13 +312,15 @@ class Cendry(_BaseCendry):
         """
         validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
+        doc_ref = self._backend.get_doc_ref(col_ref, instance.id)
         is_new = instance.id is None
-        doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
-        write_result = doc_ref.set(to_dict(instance, by_alias=True, registry=self.type_registry))
+        write_result = self._backend.set_doc(
+            doc_ref, to_dict(instance, by_alias=True, registry=self.type_registry)
+        )
         if is_new:
-            instance.id = doc_ref.id
+            instance.id = self._backend.doc_ref_id(doc_ref)
         _set_metadata(instance, update_time=write_result.update_time)
-        return doc_ref.id  # type: ignore[no-any-return]
+        return self._backend.doc_ref_id(doc_ref)
 
     def create(self, instance: T, *, parent: Model | None = None) -> str:
         """Create a document. Raises if it already exists. Returns the document ID.
@@ -336,18 +337,20 @@ class Cendry(_BaseCendry):
         """
         validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
+        doc_ref = self._backend.get_doc_ref(col_ref, instance.id)
         is_new = instance.id is None
-        doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
         try:
-            write_result = doc_ref.create(
-                to_dict(instance, by_alias=True, registry=self.type_registry)
+            write_result = self._backend.create_doc(
+                doc_ref, to_dict(instance, by_alias=True, registry=self.type_registry)
             )
-        except Conflict as e:
-            raise DocumentAlreadyExistsError(type(instance).__collection__, doc_ref.id) from e
+        except DocumentAlreadyExistsError as exc:
+            raise DocumentAlreadyExistsError(
+                type(instance).__collection__, self._backend.doc_ref_id(doc_ref)
+            ) from exc.__cause__
         if is_new:
-            instance.id = doc_ref.id
+            instance.id = self._backend.doc_ref_id(doc_ref)
         _set_metadata(instance, update_time=write_result.update_time)
-        return doc_ref.id  # type: ignore[no-any-return]
+        return self._backend.doc_ref_id(doc_ref)
 
     @overload
     def delete(
@@ -389,20 +392,23 @@ class Cendry(_BaseCendry):
         if isinstance(instance_or_class, Model):
             if instance_or_class.id is None:
                 raise CendryError("Cannot delete a model instance with id=None")
-            option = _resolve_precondition(if_unchanged, instance_or_class)
+            option = _resolve_precondition(self._backend, if_unchanged, instance_or_class)
             col_ref = self._get_collection_ref(type(instance_or_class), parent)
-            col_ref.document(instance_or_class.id).delete(option=option)
+            doc_ref = self._backend.get_doc_ref(col_ref, instance_or_class.id)
+            self._backend.delete_doc(doc_ref, precondition=option)
             _clear_metadata(instance_or_class)
         else:
             if doc_id is None:  # pragma: no cover
                 raise CendryError("doc_id is required")  # pragma: no cover
-            option = _resolve_precondition(if_unchanged)
+            option = _resolve_precondition(self._backend, if_unchanged)
             col_ref = self._get_collection_ref(instance_or_class, parent)
             if must_exist:
-                doc = col_ref.document(doc_id).get()
+                doc_ref = self._backend.get_doc_ref(col_ref, doc_id)
+                doc = self._backend.get_doc(doc_ref)
                 if not doc.exists:
                     raise DocumentNotFoundError(instance_or_class.__collection__, doc_id)
-            col_ref.document(doc_id).delete(option=option)
+            doc_ref = self._backend.get_doc_ref(col_ref, doc_id)
+            self._backend.delete_doc(doc_ref, precondition=option)
 
     @overload
     def update(
@@ -467,17 +473,18 @@ class Cendry(_BaseCendry):
             for k, v in field_updates.items()
         }
         instance_for_meta = instance_or_class if isinstance(instance_or_class, Model) else None
-        option = _resolve_precondition(if_unchanged, instance_for_meta)
+        option = _resolve_precondition(self._backend, if_unchanged, instance_for_meta)
         col_ref = self._get_collection_ref(model_class, parent)
+        doc_ref = self._backend.get_doc_ref(col_ref, doc_id)
         try:
-            write_result = col_ref.document(doc_id).update(resolved, option=option)
-        except NotFound as e:
-            raise DocumentNotFoundError(model_class.__collection__, doc_id) from e
+            write_result = self._backend.update_doc(doc_ref, resolved, precondition=option)
+        except DocumentNotFoundError as exc:
+            raise DocumentNotFoundError(model_class.__collection__, doc_id) from exc.__cause__
         if instance_for_meta is not None:
             _set_metadata(instance_for_meta, update_time=write_result.update_time)
 
     def refresh(self, instance: T, *, parent: Model | None = None) -> None:
-        """Re-fetch a document from Firestore and update the instance in-place.
+        """Re-fetch a document and update the instance in-place.
 
         Args:
             instance: Model instance to refresh.
@@ -489,10 +496,11 @@ class Cendry(_BaseCendry):
         if instance.id is None:
             raise CendryError("Cannot refresh a model instance with id=None")
         col_ref = self._get_collection_ref(type(instance), parent)
-        doc = col_ref.document(instance.id).get()
+        doc_ref = self._backend.get_doc_ref(col_ref, instance.id)
+        doc = self._backend.get_doc(doc_ref)
         if not doc.exists:
             raise DocumentNotFoundError(type(instance).__collection__, instance.id)
-        fresh = deserialize(type(instance), doc.id, doc.to_dict(), registry=self.type_registry)
+        fresh = deserialize(type(instance), doc.doc_id, doc.data, registry=self.type_registry)
         for f in dataclasses.fields(instance):
             setattr(instance, f.name, getattr(fresh, f.name))
         _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
@@ -516,7 +524,7 @@ class Cendry(_BaseCendry):
             Sync only — async listeners are not supported by the Firestore SDK.
         """
         col_ref = self._get_collection_ref(model_class, parent)
-        doc_ref = col_ref.document(doc_id)
+        doc_ref = self._backend.get_doc_ref(col_ref, doc_id)
         registry = self.type_registry
 
         def _wrapper(doc_snapshot: Any, changes: Any, read_time: Any) -> None:
@@ -528,13 +536,18 @@ class Cendry(_BaseCendry):
             else:
                 callback(None, changes, read_time)
 
-        return doc_ref.on_snapshot(_wrapper)
+        return self._backend.on_doc_snapshot(doc_ref, _wrapper)
 
     def batch(self) -> "Batch":
         """Create a batch writer for atomic multi-document operations."""
         from .batch import Batch
 
-        return Batch(self._client.batch(), self._get_collection_ref, self.type_registry)
+        return Batch(
+            self._backend.new_batch(),
+            self._get_collection_ref,
+            self.type_registry,
+            backend=self._backend,
+        )
 
     def save_many(self, instances: list[T], *, parent: Model | None = None) -> None:
         """Save multiple documents atomically. Max 500 items.
@@ -614,16 +627,16 @@ class Cendry(_BaseCendry):
             max_attempts: Max retry attempts on contention (callback form only).
             read_only: If True, no writes allowed.
         """
-        from google.cloud.firestore_v1.transaction import transactional
-
         from .transaction import Txn
 
-        fs_txn = self._client.transaction(max_attempts=max_attempts, read_only=read_only)
-        txn = Txn(fs_txn, self._get_collection_ref, self.type_registry)
+        fs_txn = self._backend.new_transaction(max_attempts=max_attempts, read_only=read_only)
+        txn = Txn(fs_txn, self._get_collection_ref, self.type_registry, backend=self._backend)
         if fn is None:
             return txn
 
-        @transactional
+        from google.cloud.firestore_v1.transaction import transactional  # pragma: no cover
+
+        @transactional  # pragma: no cover
         def _run(transaction: Any) -> Any:  # pragma: no cover
             return fn(txn)
 
@@ -637,6 +650,7 @@ class AsyncCendry(_BaseCendry):
 
     Args:
         client: Optional async Firestore Client.
+        backend: Optional AsyncBackend instance. Mutually exclusive with ``client``.
         type_registry: Optional TypeRegistry override.
 
     Note:
@@ -648,30 +662,39 @@ class AsyncCendry(_BaseCendry):
         self,
         *,
         client: Any = None,
+        backend: "AsyncBackend | None" = None,
         type_registry: TypeRegistry | None = None,
     ) -> None:
-        if client is None:
-            from google.cloud.firestore import AsyncClient
+        if backend is not None and client is not None:
+            raise CendryError("Cannot specify both 'client' and 'backend'")
+        if backend is not None:
+            self._backend = backend
+        else:
+            from .backends.firestore import FirestoreAsyncBackend
 
-            client = AsyncClient()
-        self._client = client
+            if client is None:
+                from google.cloud.firestore import AsyncClient
+
+                client = AsyncClient()
+            self._backend = FirestoreAsyncBackend(client=client)
         self.type_registry = type_registry or default_registry
 
     async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, *args: object) -> None:
-        await self._client.close()
+        await self._backend.close()
 
     async def get(
         self, model_class: type[T], document_id: str, *, parent: Model | None = None
     ) -> T:
         """Get a document by ID. Raises DocumentNotFoundError if it doesn't exist."""
         col_ref = self._get_collection_ref(model_class, parent)
-        doc = await col_ref.document(document_id).get()
+        doc_ref = self._backend.get_doc_ref(col_ref, document_id)
+        doc = await self._backend.get_doc(doc_ref)
         if not doc.exists:
             raise DocumentNotFoundError(model_class.__collection__, document_id)
-        result = deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+        result = deserialize(model_class, doc.doc_id, doc.data, registry=self.type_registry)
         _set_metadata(result, update_time=doc.update_time, create_time=doc.create_time)
         return result
 
@@ -680,10 +703,11 @@ class AsyncCendry(_BaseCendry):
     ) -> T | None:
         """Get a document by ID. Returns None if it doesn't exist."""
         col_ref = self._get_collection_ref(model_class, parent)
-        doc = await col_ref.document(document_id).get()
+        doc_ref = self._backend.get_doc_ref(col_ref, document_id)
+        doc = await self._backend.get_doc(doc_ref)
         if not doc.exists:
             return None
-        result = deserialize(model_class, doc.id, doc.to_dict(), registry=self.type_registry)
+        result = deserialize(model_class, doc.doc_id, doc.data, registry=self.type_registry)
         _set_metadata(result, update_time=doc.update_time, create_time=doc.create_time)
         return result
 
@@ -708,15 +732,15 @@ class AsyncCendry(_BaseCendry):
             DocumentNotFoundError: If any documents are missing.
         """
         col_ref = self._get_collection_ref(model_class, parent)
-        doc_refs = [col_ref.document(doc_id) for doc_id in document_ids]
+        doc_refs = [self._backend.get_doc_ref(col_ref, doc_id) for doc_id in document_ids]
         results: list[T] = []
         missing: list[str] = []
-        async for doc in self._client.get_all(doc_refs):
+        async for doc in self._backend.get_all(doc_refs):
             if not doc.exists:
-                missing.append(doc.id)
+                missing.append(doc.doc_id)
             else:
                 instance = deserialize(
-                    model_class, doc.id, doc.to_dict(), registry=self.type_registry
+                    model_class, doc.doc_id, doc.data, registry=self.type_registry
                 )
                 _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
                 results.append(instance)
@@ -779,32 +803,34 @@ class AsyncCendry(_BaseCendry):
         """Save (upsert) a document. Returns the document ID."""
         validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
+        doc_ref = self._backend.get_doc_ref(col_ref, instance.id)
         is_new = instance.id is None
-        doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
-        write_result = await doc_ref.set(
-            to_dict(instance, by_alias=True, registry=self.type_registry)
+        write_result = await self._backend.set_doc(
+            doc_ref, to_dict(instance, by_alias=True, registry=self.type_registry)
         )
         if is_new:
-            instance.id = doc_ref.id
+            instance.id = self._backend.doc_ref_id(doc_ref)
         _set_metadata(instance, update_time=write_result.update_time)
-        return doc_ref.id  # type: ignore[no-any-return]
+        return self._backend.doc_ref_id(doc_ref)
 
     async def create(self, instance: T, *, parent: Model | None = None) -> str:
         """Create a document. Raises if it already exists. Returns the document ID."""
         validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
+        doc_ref = self._backend.get_doc_ref(col_ref, instance.id)
         is_new = instance.id is None
-        doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
         try:
-            write_result = await doc_ref.create(
-                to_dict(instance, by_alias=True, registry=self.type_registry)
+            write_result = await self._backend.create_doc(
+                doc_ref, to_dict(instance, by_alias=True, registry=self.type_registry)
             )
-        except Conflict as e:
-            raise DocumentAlreadyExistsError(type(instance).__collection__, doc_ref.id) from e
+        except DocumentAlreadyExistsError as exc:
+            raise DocumentAlreadyExistsError(
+                type(instance).__collection__, self._backend.doc_ref_id(doc_ref)
+            ) from exc.__cause__
         if is_new:
-            instance.id = doc_ref.id
+            instance.id = self._backend.doc_ref_id(doc_ref)
         _set_metadata(instance, update_time=write_result.update_time)
-        return doc_ref.id  # type: ignore[no-any-return]
+        return self._backend.doc_ref_id(doc_ref)
 
     @overload
     async def delete(
@@ -838,20 +864,23 @@ class AsyncCendry(_BaseCendry):
         if isinstance(instance_or_class, Model):
             if instance_or_class.id is None:
                 raise CendryError("Cannot delete a model instance with id=None")
-            option = _resolve_precondition(if_unchanged, instance_or_class)
+            option = _resolve_precondition(self._backend, if_unchanged, instance_or_class)
             col_ref = self._get_collection_ref(type(instance_or_class), parent)
-            await col_ref.document(instance_or_class.id).delete(option=option)
+            doc_ref = self._backend.get_doc_ref(col_ref, instance_or_class.id)
+            await self._backend.delete_doc(doc_ref, precondition=option)
             _clear_metadata(instance_or_class)
         else:
             if doc_id is None:  # pragma: no cover
                 raise CendryError("doc_id is required")  # pragma: no cover
-            option = _resolve_precondition(if_unchanged)
+            option = _resolve_precondition(self._backend, if_unchanged)
             col_ref = self._get_collection_ref(instance_or_class, parent)
             if must_exist:
-                doc = await col_ref.document(doc_id).get()
+                doc_ref = self._backend.get_doc_ref(col_ref, doc_id)
+                doc = await self._backend.get_doc(doc_ref)
                 if not doc.exists:
                     raise DocumentNotFoundError(instance_or_class.__collection__, doc_id)
-            await col_ref.document(doc_id).delete(option=option)
+            doc_ref = self._backend.get_doc_ref(col_ref, doc_id)
+            await self._backend.delete_doc(doc_ref, precondition=option)
 
     @overload
     async def update(
@@ -905,24 +934,26 @@ class AsyncCendry(_BaseCendry):
             for k, v in field_updates.items()
         }
         instance_for_meta = instance_or_class if isinstance(instance_or_class, Model) else None
-        option = _resolve_precondition(if_unchanged, instance_for_meta)
+        option = _resolve_precondition(self._backend, if_unchanged, instance_for_meta)
         col_ref = self._get_collection_ref(model_class, parent)
+        doc_ref = self._backend.get_doc_ref(col_ref, doc_id)
         try:
-            write_result = await col_ref.document(doc_id).update(resolved, option=option)
-        except NotFound as e:
-            raise DocumentNotFoundError(model_class.__collection__, doc_id) from e
+            write_result = await self._backend.update_doc(doc_ref, resolved, precondition=option)
+        except DocumentNotFoundError as exc:
+            raise DocumentNotFoundError(model_class.__collection__, doc_id) from exc.__cause__
         if instance_for_meta is not None:
             _set_metadata(instance_for_meta, update_time=write_result.update_time)
 
     async def refresh(self, instance: T, *, parent: Model | None = None) -> None:
-        """Re-fetch a document from Firestore and update the instance in-place."""
+        """Re-fetch a document and update the instance in-place."""
         if instance.id is None:
             raise CendryError("Cannot refresh a model instance with id=None")
         col_ref = self._get_collection_ref(type(instance), parent)
-        doc = await col_ref.document(instance.id).get()
+        doc_ref = self._backend.get_doc_ref(col_ref, instance.id)
+        doc = await self._backend.get_doc(doc_ref)
         if not doc.exists:
             raise DocumentNotFoundError(type(instance).__collection__, instance.id)
-        fresh = deserialize(type(instance), doc.id, doc.to_dict(), registry=self.type_registry)
+        fresh = deserialize(type(instance), doc.doc_id, doc.data, registry=self.type_registry)
         for f in dataclasses.fields(instance):
             setattr(instance, f.name, getattr(fresh, f.name))
         _set_metadata(instance, update_time=doc.update_time, create_time=doc.create_time)
@@ -931,7 +962,12 @@ class AsyncCendry(_BaseCendry):
         """Create an async batch writer for atomic multi-document operations."""
         from .batch import AsyncBatch
 
-        return AsyncBatch(self._client.batch(), self._get_collection_ref, self.type_registry)
+        return AsyncBatch(
+            self._backend.new_batch(),
+            self._get_collection_ref,
+            self.type_registry,
+            backend=self._backend,
+        )
 
     async def save_many(self, instances: list[T], *, parent: Model | None = None) -> None:
         """Save multiple documents atomically. Max 500 items."""
@@ -1007,8 +1043,8 @@ class AsyncCendry(_BaseCendry):
         """
         from .transaction import AsyncTxn
 
-        fs_txn = self._client.transaction(max_attempts=max_attempts, read_only=read_only)
-        txn = AsyncTxn(fs_txn, self._get_collection_ref, self.type_registry)
+        fs_txn = self._backend.new_transaction(max_attempts=max_attempts, read_only=read_only)
+        txn = AsyncTxn(fs_txn, self._get_collection_ref, self.type_registry, backend=self._backend)
         if fn is None:
             return txn
 

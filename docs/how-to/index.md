@@ -30,3 +30,6 @@ Practical recipes for specific tasks. Each guide is self-contained — jump to w
 
 **[Test with Emulator](testing.md)**
 :   Integration tests with Firestore emulator via testcontainers.
+
+**[Migrate from Datastore to Native](migrate-datastore-to-native.md)**
+:   Step-by-step migration from Firestore Datastore mode to Native mode.

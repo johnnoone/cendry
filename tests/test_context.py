@@ -276,7 +276,29 @@ def test_async_cendry_default_client():
     with patch("google.cloud.firestore.AsyncClient") as mock_client:
         ctx = AsyncCendry()
         mock_client.assert_called_once()
-        assert ctx._client is mock_client.return_value
+        assert ctx._backend._client is mock_client.return_value
+
+
+def test_cendry_with_backend():
+    mock_backend = MagicMock()
+    ctx = Cendry(backend=mock_backend)
+    assert ctx._backend is mock_backend
+
+
+def test_cendry_backend_and_client_raises():
+    with pytest.raises(CendryError, match="Cannot specify both"):
+        Cendry(client=MagicMock(), backend=MagicMock())
+
+
+def test_async_cendry_with_backend():
+    mock_backend = MagicMock()
+    ctx = AsyncCendry(backend=mock_backend)
+    assert ctx._backend is mock_backend
+
+
+def test_async_cendry_backend_and_client_raises():
+    with pytest.raises(CendryError, match="Cannot specify both"):
+        AsyncCendry(client=MagicMock(), backend=MagicMock())
 
 
 # --- Nested Map deserialization ---

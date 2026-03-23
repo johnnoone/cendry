@@ -1,6 +1,6 @@
 [project]
 name = "cendry"
-version = "0.2.0"
+version = "0.3.0"
 description = "A typed Firestore ODM for Python — define models, query with Python operators, get full IDE support."
 readme = "README.md"
 license = "MIT"
@@ -25,6 +25,9 @@ dependencies = [
     "anyio>=4",
 ]
 
+[project.optional-dependencies]
+datastore = ["google-cloud-datastore>=2.19"]
+
 [project.urls]
 Documentation = "https://johnnoone.github.io/cendry/"
 Repository = "https://github.com/johnnoone/cendry"
@@ -43,6 +46,7 @@ dev = [
     "zensical",
     "mkdocstrings[python]>=0.27",
     "testcontainers",
+    "google-cloud-datastore>=2.19",
 ]
 
 [build-system]
@@ -83,6 +87,7 @@ not-subscriptable = "ignore"
 
 [tool.coverage.run]
 source = ["cendry"]
+omit = ["*/backends/datastore.py"]
 
 [tool.coverage.report]
 fail_under = 100

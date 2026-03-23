@@ -80,11 +80,55 @@ When a field has `alias="displayName"`:
 
 **Why:** Python code should use Python names. Firestore-facing operations use Firestore names. The `by_alias` flag gives control when you need it.
 
-## Thin wrapper over Firestore
+## Thin wrapper over Firestore Native
 
-`FieldFilter` is Firestore's own class, re-exported. Query semantics match Firestore (streaming, collection groups, subcollections). Cendry doesn't invent new query semantics.
+Cendry is a **Firestore Native mode ODM**. `FieldFilter` is Firestore's own class, re-exported. Query semantics match Firestore (streaming, collection groups, subcollections). Cendry doesn't invent new query semantics.
 
 **Why:** Users who know Firestore should feel at home. The library adds typing and convenience, not abstraction.
+
+Datastore mode support exists **solely as a migration bridge** — it is not a first-class backend. Cendry's models, query API, filter syntax, and serialization are all designed around Firestore Native semantics. The Datastore backend translates these semantics to the Datastore API where possible, and raises clear errors where it cannot. The goal is to give users a path from Datastore to Native mode: define models once, validate against existing Datastore data, migrate the database, swap one line of config, done.
+
+Once migrated, there is no reason to keep the Datastore backend. It is intentionally a subset — every feature it lacks is a reason to migrate.
+
+## Backend protocol — abstraction trade-off
+
+Given that Cendry is primarily a Native wrapper, adding a backend abstraction layer is a deliberate exception to the "thin wrapper" principle.
+
+**Why:** The abstraction is justified because:
+
+- It is **bounded** — the Backend protocol is the only new interface, not a full ORM abstraction layer
+- It is **pass-through** — on the Firestore backend, every method is a 2–5 line delegation to the Firestore SDK. There is no performance or behavioral cost.
+- It is **transitional** — once a user migrates to Native mode, the Datastore backend is dropped and `Cendry()` defaults to `FirestoreBackend` with zero overhead
+
+## Datastore backend — supported feature subset
+
+The `DatastoreBackend` implements only the features that have a natural equivalent in Datastore. Features without an equivalent raise `CendryError` with a message nudging users to migrate.
+
+| Feature | Supported | Reason |
+|---|---|---|
+| CRUD (`get`, `save`, `delete`, `update`) | Yes | Direct mapping: Entity get/put/delete |
+| Queries (filter, order, limit) | Yes | `query.add_filter()`, `query.order`, `query.fetch(limit=)` |
+| AND filters | Yes | Multiple `add_filter()` calls (implicit AND) |
+| OR filters | **No** | Datastore has no native OR support |
+| Subcollections (`parent=`) | Yes | Maps to ancestor keys |
+| Batch writes | Yes | `client.batch()` exists in both SDKs |
+| Transactions | Yes | `client.transaction()` exists in both SDKs |
+| Collection group queries | **No** | No Datastore equivalent |
+| Real-time listeners (`on_snapshot`) | **No** | Datastore has no push-based change notification |
+| Async (`AsyncCendry`) | **No** | `google-cloud-datastore` has no `AsyncClient` |
+| Transforms (`Increment`, `SERVER_TIMESTAMP`) | **No** | Datastore has no server-side transforms |
+| Optimistic locking (`if_unchanged`) | **No** | Datastore has no `LastUpdateOption` equivalent |
+| Document metadata (`update_time`, `create_time`) | **No** | Not exposed on Datastore entities |
+
+**Why not emulate unsupported features?** For example, OR queries could be emulated by running multiple queries and merging results. We chose not to because:
+
+- **Semantic parity** — emulated features behave differently under edge cases (ordering, pagination, consistency). Users would discover subtle bugs in production.
+- **Performance transparency** — an emulated OR query that fans out to N sub-queries has different cost and latency characteristics. Hiding this violates the "thin wrapper" principle.
+- **Migration nudge** — every `CendryError` on an unsupported feature is an explicit signal to migrate. The error message tells the user exactly what to do.
+
+**Why not a read-only subset?** Datastore supports writes (`put`, `delete`, `batch`) natively. Excluding them would force users to maintain two data access layers during migration — defeating the purpose.
+
+**`create()` and `update()` are not atomic** outside transactions on the Datastore backend. Datastore has no "create if not exists" or partial update primitive. Cendry implements these as `get + check + put` (TOCTOU race). This is documented and users are advised to wrap these calls in transactions.
 
 ## Type validation at class definition
 

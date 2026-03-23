@@ -16,8 +16,10 @@ class Batch(WritesMixin):
         firestore_batch: Any,
         get_collection_ref: Callable[..., Any],
         registry: TypeRegistry,
+        backend: Any = None,
     ) -> None:
         self._writer = firestore_batch
+        self._backend = backend
         self._get_collection_ref = get_collection_ref
         self._registry = registry
 
@@ -40,8 +42,10 @@ class AsyncBatch(WritesMixin):
         firestore_batch: Any,
         get_collection_ref: Callable[..., Any],
         registry: TypeRegistry,
+        backend: Any = None,
     ) -> None:
         self._writer = firestore_batch
+        self._backend = backend
         self._get_collection_ref = get_collection_ref
         self._registry = registry
 

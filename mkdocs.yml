@@ -95,6 +95,7 @@ nav:
     - Extend Type Validation: how-to/type-validation.md
     - Use Async: how-to/async.md
     - Test with Emulator: how-to/testing.md
+    - Migrate Datastore to Native: how-to/migrate-datastore-to-native.md
   - Reference:
     - reference/index.md
     - Models: reference/models.md

@@ -20,33 +20,48 @@ T = TypeVar("T", bound=Model)
 class WritesMixin:
     """Mixin providing model-aware write methods for batch and transaction wrappers.
 
-    Subclasses must set ``_writer``, ``_get_collection_ref``, and ``_registry``.
-    ``_writer`` is the Firestore WriteBatch or Transaction object.
+    Subclasses must set ``_writer``, ``_backend``, ``_get_collection_ref``,
+    and ``_registry``.
+    ``_writer`` is the backend-specific WriteBatch or Transaction object.
+    ``_backend`` is the Backend instance used for doc ref creation and writes.
     """
 
     _writer: Any
+    _backend: Any
     _get_collection_ref: Callable[..., Any]
     _registry: TypeRegistry
+
+    def _get_doc_ref(self, col_ref: Any, doc_id: str | None) -> Any:
+        """Get a document reference, using backend if available."""
+        if self._backend is not None:  # pragma: no cover
+            return self._backend.get_doc_ref(col_ref, doc_id)
+        return col_ref.document() if doc_id is None else col_ref.document(doc_id)
+
+    def _doc_ref_id(self, doc_ref: Any) -> str:
+        """Get document ID from ref, using backend if available."""
+        if self._backend is not None:  # pragma: no cover
+            return self._backend.doc_ref_id(doc_ref)  # type: ignore[no-any-return]
+        return doc_ref.id  # type: ignore[no-any-return]
 
     def save(self, instance: T, *, parent: Model | None = None) -> None:
         """Queue a save (upsert). Mutates instance.id if None."""
         validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
         is_new = instance.id is None
-        doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
+        doc_ref = self._get_doc_ref(col_ref, instance.id)
         self._writer.set(doc_ref, to_dict(instance, by_alias=True, registry=self._registry))
         if is_new:
-            instance.id = doc_ref.id
+            instance.id = self._doc_ref_id(doc_ref)
 
     def create(self, instance: T, *, parent: Model | None = None) -> None:
         """Queue a create (insert only). Mutates instance.id if None."""
         validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
         is_new = instance.id is None
-        doc_ref = col_ref.document() if is_new else col_ref.document(instance.id)
+        doc_ref = self._get_doc_ref(col_ref, instance.id)
         self._writer.create(doc_ref, to_dict(instance, by_alias=True, registry=self._registry))
         if is_new:
-            instance.id = doc_ref.id
+            instance.id = self._doc_ref_id(doc_ref)
 
     @overload
     def update(
@@ -93,7 +108,8 @@ class WritesMixin:
             for k, v in field_updates.items()
         }
         col_ref = self._get_collection_ref(model_class, parent)
-        self._writer.update(col_ref.document(doc_id), resolved)
+        doc_ref = self._get_doc_ref(col_ref, doc_id)
+        self._writer.update(doc_ref, resolved)
 
     @overload
     def delete(self, instance: Model, *, parent: Model | None = None) -> None: ...
@@ -114,9 +130,11 @@ class WritesMixin:
             if instance_or_class.id is None:
                 raise CendryError("Cannot delete a model instance with id=None")
             col_ref = self._get_collection_ref(type(instance_or_class), parent)
-            self._writer.delete(col_ref.document(instance_or_class.id))
+            doc_ref = self._get_doc_ref(col_ref, instance_or_class.id)
+            self._writer.delete(doc_ref)
         else:
             if doc_id is None:  # pragma: no cover
                 raise CendryError("doc_id is required when calling delete with a class")
             col_ref = self._get_collection_ref(instance_or_class, parent)
-            self._writer.delete(col_ref.document(doc_id))
+            doc_ref = self._get_doc_ref(col_ref, doc_id)
+            self._writer.delete(doc_ref)

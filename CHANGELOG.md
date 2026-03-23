@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.0] — 2026-03-23
+
+### Added
+
+- **Backend protocol** — `Backend` and `AsyncBackend` protocols for pluggable database backends
+- **`FirestoreBackend`** / **`FirestoreAsyncBackend`** — explicit Firestore backend classes (extracted from `Cendry`/`AsyncCendry`)
+- **`DatastoreBackend`** — support for Firestore in Datastore mode (`pip install cendry[datastore]`), enabling migration from Datastore to Native mode
+- **`DocResult`** / **`WriteResult`** — backend-agnostic result types
+- **Migration guide** — "How to migrate from Datastore to Native mode" how-to documentation
+
+### Changed
+
+- **`Cendry`** and **`AsyncCendry`** now accept `backend=` parameter (backward compatible — `client=` still works)
+- Exception handling (`Conflict` → `DocumentAlreadyExistsError`, `NotFound` → `DocumentNotFoundError`) moved into backend implementations
+- All direct Firestore client calls extracted from `context.py` into `FirestoreBackend`
+
+### Known limitations (Datastore backend)
+
+- No async support — `AsyncCendry(backend=DatastoreBackend(...))` raises `CendryError`
+- No `OR` queries, collection groups, real-time listeners, optimistic locking, or transforms
+- `create()` / `update()` are not atomic outside transactions (TOCTOU race)
+- `update_time` / `create_time` metadata not available
+- `GeoPoint` and `DocumentReference` type handlers not yet supported
+
 ## [0.2.0] — 2026-03-22
 
 ### Added

@@ -10,6 +10,9 @@ from google.cloud.firestore import (
     Minimum,
 )
 
+from .backend import AsyncBackend, Backend
+from .backends.firestore import FirestoreAsyncBackend, FirestoreBackend
+from .backends.types import DocResult, WriteResult
 from .batch import AsyncBatch, Batch
 from .context import AsyncCendry, Cendry
 from .exceptions import CendryError, DocumentAlreadyExistsError, DocumentNotFoundError
@@ -28,22 +31,27 @@ __all__ = [
     "ArrayRemove",
     "ArrayUnion",
     "Asc",
+    "AsyncBackend",
     "AsyncBatch",
     "AsyncCendry",
     "AsyncProjectedQuery",
     "AsyncQuery",
     "AsyncTxn",
+    "Backend",
     "BaseTypeHandler",
     "Batch",
     "Cendry",
     "CendryError",
     "Desc",
+    "DocResult",
     "DocumentAlreadyExistsError",
     "DocumentMetadata",
     "DocumentNotFoundError",
     "Field",
     "FieldDescriptor",
     "FieldFilter",
+    "FirestoreAsyncBackend",
+    "FirestoreBackend",
     "Increment",
     "Map",
     "Maximum",
@@ -55,6 +63,7 @@ __all__ = [
     "Txn",
     "TypeHandler",
     "TypeRegistry",
+    "WriteResult",
     "field",
     "from_dict",
     "get_metadata",
