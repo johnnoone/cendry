@@ -298,7 +298,7 @@ def test_get_many_missing_raises(mock_firestore_client: MagicMock):
 async def test_async_get_many(mock_firestore_client: MagicMock):
     docs = [make_mock_document("SF", SF_DATA, exists=True)]
 
-    async def mock_get_all(refs):
+    async def mock_get_all(refs, **kwargs):
         for d in docs:
             yield d
 
@@ -476,7 +476,7 @@ async def test_async_query_limit(mock_firestore_client: MagicMock):
 
 @pytest.mark.anyio
 async def test_async_get_many_missing_raises(mock_firestore_client: MagicMock):
-    async def mock_get_all(refs):
+    async def mock_get_all(refs, **kwargs):
         yield make_mock_document("SF", SF_DATA, exists=True)
         yield make_mock_document("NOPE", {}, exists=False)
 

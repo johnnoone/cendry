@@ -149,8 +149,8 @@ class FirestoreBackend(_FirestoreQueryMixin):
             return WriteResult(update_time=None)
         try:
             result = doc_ref.create(data)
-        except Conflict:
-            raise DocumentAlreadyExistsError("", doc_ref.id) from None
+        except Conflict as exc:
+            raise DocumentAlreadyExistsError("", doc_ref.id) from exc
         return WriteResult(update_time=result.update_time)
 
     def update_doc(
@@ -166,8 +166,8 @@ class FirestoreBackend(_FirestoreQueryMixin):
             return WriteResult(update_time=None)
         try:
             result = doc_ref.update(updates, option=precondition)
-        except NotFound:
-            raise DocumentNotFoundError("", doc_ref.id) from None
+        except NotFound as exc:
+            raise DocumentNotFoundError("", doc_ref.id) from exc
         return WriteResult(update_time=result.update_time)
 
     def delete_doc(
@@ -255,8 +255,8 @@ class FirestoreAsyncBackend(_FirestoreQueryMixin):
             return WriteResult(update_time=None)
         try:
             result = await doc_ref.create(data)
-        except Conflict:
-            raise DocumentAlreadyExistsError("", doc_ref.id) from None
+        except Conflict as exc:
+            raise DocumentAlreadyExistsError("", doc_ref.id) from exc
         return WriteResult(update_time=result.update_time)
 
     async def update_doc(
@@ -272,8 +272,8 @@ class FirestoreAsyncBackend(_FirestoreQueryMixin):
             return WriteResult(update_time=None)
         try:
             result = await doc_ref.update(updates, option=precondition)
-        except NotFound:
-            raise DocumentNotFoundError("", doc_ref.id) from None
+        except NotFound as exc:
+            raise DocumentNotFoundError("", doc_ref.id) from exc
         return WriteResult(update_time=result.update_time)
 
     async def delete_doc(
