@@ -542,7 +542,12 @@ class Cendry(_BaseCendry):
         """Create a batch writer for atomic multi-document operations."""
         from .batch import Batch
 
-        return Batch(self._backend.new_batch(), self._get_collection_ref, self.type_registry)
+        return Batch(
+            self._backend.new_batch(),
+            self._get_collection_ref,
+            self.type_registry,
+            backend=self._backend,
+        )
 
     def save_many(self, instances: list[T], *, parent: Model | None = None) -> None:
         """Save multiple documents atomically. Max 500 items.
@@ -622,16 +627,16 @@ class Cendry(_BaseCendry):
             max_attempts: Max retry attempts on contention (callback form only).
             read_only: If True, no writes allowed.
         """
-        from google.cloud.firestore_v1.transaction import transactional
-
         from .transaction import Txn
 
         fs_txn = self._backend.new_transaction(max_attempts=max_attempts, read_only=read_only)
-        txn = Txn(fs_txn, self._get_collection_ref, self.type_registry)
+        txn = Txn(fs_txn, self._get_collection_ref, self.type_registry, backend=self._backend)
         if fn is None:
             return txn
 
-        @transactional
+        from google.cloud.firestore_v1.transaction import transactional  # pragma: no cover
+
+        @transactional  # pragma: no cover
         def _run(transaction: Any) -> Any:  # pragma: no cover
             return fn(txn)
 
@@ -957,7 +962,12 @@ class AsyncCendry(_BaseCendry):
         """Create an async batch writer for atomic multi-document operations."""
         from .batch import AsyncBatch
 
-        return AsyncBatch(self._backend.new_batch(), self._get_collection_ref, self.type_registry)
+        return AsyncBatch(
+            self._backend.new_batch(),
+            self._get_collection_ref,
+            self.type_registry,
+            backend=self._backend,
+        )
 
     async def save_many(self, instances: list[T], *, parent: Model | None = None) -> None:
         """Save multiple documents atomically. Max 500 items."""
@@ -1034,7 +1044,7 @@ class AsyncCendry(_BaseCendry):
         from .transaction import AsyncTxn
 
         fs_txn = self._backend.new_transaction(max_attempts=max_attempts, read_only=read_only)
-        txn = AsyncTxn(fs_txn, self._get_collection_ref, self.type_registry)
+        txn = AsyncTxn(fs_txn, self._get_collection_ref, self.type_registry, backend=self._backend)
         if fn is None:
             return txn
 

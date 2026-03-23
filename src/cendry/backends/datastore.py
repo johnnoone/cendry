@@ -1,9 +1,10 @@
 """Datastore backend implementation."""
 
+import contextlib
 import dataclasses
 import datetime
 from collections.abc import Iterator
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 try:
     from google.cloud import datastore
@@ -89,6 +90,120 @@ class _QueryWrapper:
         for entity in self.fetch():
             yield _EntitySnapshot(entity)
 
+    def limit(self, n: int) -> "_QueryWrapper":
+        """Return a new wrapper with a limit applied."""
+        clone = _QueryWrapper(self._query)
+        clone._limit = n
+        clone._start_cursor = self._start_cursor
+        clone._end_cursor = self._end_cursor
+        return clone
+
+    def select(self, field_paths: list[str]) -> "_QueryWrapper":
+        """Return a new wrapper with projection set."""
+        clone = _QueryWrapper(self._query)
+        clone._limit = self._limit
+        clone._start_cursor = self._start_cursor
+        clone._end_cursor = self._end_cursor
+        clone.projection = field_paths
+        return clone
+
+    def count(self) -> "_CountResult":
+        """Return a count aggregation result object."""
+        return _CountResult(self)
+
+    def order_by(self, field: str, direction: str = "ASCENDING") -> "_QueryWrapper":
+        """Add an ordering and return self for chaining."""
+        if direction == "DESCENDING":
+            self.order = [*self.order, f"-{field}"]
+        else:
+            self.order = [*self.order, field]
+        return self
+
+    def on_snapshot(self, callback: Any) -> Any:
+        """Not supported for Datastore."""
+        raise CendryError(
+            "Real-time listeners are not supported in Datastore mode. Migrate to Native mode."
+        )
+
+
+class _AggValue:
+    """Simple value holder mimicking Firestore's AggregationResult."""
+
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+
+class _CountResult:
+    """Adapter that makes Datastore count results match the Firestore count() API."""
+
+    def __init__(self, wrapper: _QueryWrapper) -> None:
+        self._wrapper = wrapper
+
+    def get(self) -> list[list[_AggValue]]:
+        """Count all entities and return in Firestore-compatible format."""
+        total = sum(1 for _ in self._wrapper.fetch())
+        return [[_AggValue(total)]]
+
+
+class _DatastoreWriterAdapter:
+    """Adapter that gives a Datastore Batch/Transaction a Firestore-style write API.
+
+    The ``WritesMixin`` calls ``.set()``, ``.create()``, ``.update()``, and
+    ``.delete()`` on the writer object.  Datastore batches and transactions use
+    ``.put()`` and ``.delete()`` instead, so this thin wrapper translates.
+    """
+
+    def __init__(self, ds_writer: Any, client: Any, *, auto_begin: bool = True) -> None:
+        self._writer = ds_writer
+        self._client = client
+        if auto_begin:
+            self._writer.begin()
+
+    @property
+    def id(self) -> Any:
+        """Delegate transaction ID to the underlying writer."""
+        return getattr(self._writer, "id", None)
+
+    def set(self, key: Any, data: dict[str, Any]) -> None:
+        entity = datastore.Entity(key=key)
+        entity.update(data)
+        self._writer.put(entity)
+
+    def create(self, key: Any, data: dict[str, Any]) -> None:
+        # create semantics (duplicate check) is handled at the backend level,
+        # not by the raw writer, so this is identical to set.
+        entity = datastore.Entity(key=key)
+        entity.update(data)
+        self._writer.put(entity)
+
+    def update(self, key: Any, updates: dict[str, Any]) -> None:
+        entity = self._client.get(key)
+        if entity is None:
+            raise DocumentNotFoundError("", str(key.id_or_name))
+        entity.update(updates)
+        self._writer.put(entity)
+
+    def delete(self, key: Any) -> None:
+        self._writer.delete(key)
+
+    # Transaction lifecycle — delegate to the underlying writer
+    def begin(self) -> None:
+        self._writer.begin()
+
+    def commit(self) -> None:
+        self._writer.commit()
+
+    def rollback(self) -> None:
+        self._writer.rollback()
+
+    # Context manager support for Batch
+    def __enter__(self) -> Self:
+        self._writer.__enter__()
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self._writer.__exit__(*args)
+
 
 class DatastoreBackend:
     """Sync Datastore backend wrapping google.cloud.datastore.Client."""
@@ -111,15 +226,27 @@ class DatastoreBackend:
             incomplete_key = self._client.key(col_ref.kind, parent=col_ref.ancestor_key)
             keys = self._client.allocate_ids(incomplete_key, 1)
             return keys[0]
+        # Datastore distinguishes numeric IDs (int) from named keys (str).
+        # Auto-allocated keys use numeric IDs; we store them as strings in Model.id.
+        # Convert back to int so lookups match the original key type.
+        key_id: int | str = doc_id
+        with contextlib.suppress(ValueError):
+            key_id = int(doc_id)
         if col_ref.ancestor_key is not None:
-            return self._client.key(col_ref.kind, doc_id, parent=col_ref.ancestor_key)
-        return self._client.key(col_ref.kind, doc_id)
+            return self._client.key(col_ref.kind, key_id, parent=col_ref.ancestor_key)
+        return self._client.key(col_ref.kind, key_id)
 
     def doc_ref_id(self, doc_ref: Any) -> str:
         return str(doc_ref.id_or_name)
 
     def get_doc(self, doc_ref: Any, *, transaction: Any | None = None) -> DocResult:
-        entity = self._client.get(doc_ref, transaction=transaction)
+        # Unwrap adapter to get the raw Datastore transaction
+        raw_txn = (
+            transaction._writer
+            if isinstance(transaction, _DatastoreWriterAdapter)
+            else transaction
+        )
+        entity = self._client.get(doc_ref, transaction=raw_txn)
         if entity is None:
             return DocResult(
                 exists=False,
@@ -141,7 +268,12 @@ class DatastoreBackend:
     def get_all(
         self, doc_refs: list[Any], *, transaction: Any | None = None
     ) -> Iterator[DocResult]:
-        entities = self._client.get_multi(doc_refs, transaction=transaction)
+        raw_txn = (
+            transaction._writer
+            if isinstance(transaction, _DatastoreWriterAdapter)
+            else transaction
+        )
+        entities = self._client.get_multi(doc_refs, transaction=raw_txn)
         found_keys = {e.key for e in entities if e is not None}
         for ref in doc_refs:
             entity = next((e for e in entities if e is not None and e.key == ref), None)
@@ -221,7 +353,9 @@ class DatastoreBackend:
         )
 
     def apply_filter(self, query: _QueryWrapper, field: str, op: str, value: Any) -> Any:
-        query.add_filter(filter=PropertyFilter(field, op, value))
+        # Datastore uses single '=' for equality, not '=='
+        ds_op = "=" if op == "==" else op
+        query.add_filter(filter=PropertyFilter(field, ds_op, value))
         return query
 
     def apply_composite(self, query: _QueryWrapper, op: str, filters: list[Any]) -> _QueryWrapper:
@@ -300,10 +434,11 @@ class DatastoreBackend:
         return 0  # pragma: no cover
 
     def new_batch(self) -> Any:
-        return self._client.batch()
+        return _DatastoreWriterAdapter(self._client.batch(), self._client, auto_begin=True)
 
     def new_transaction(self, max_attempts: int, read_only: bool) -> Any:
-        return self._client.transaction()
+        # Don't auto-begin: Txn.__enter__ calls begin() via the adapter
+        return _DatastoreWriterAdapter(self._client.transaction(), self._client, auto_begin=False)
 
     def commit_batch(self, batch: Any) -> None:
         batch.commit()

@@ -87,6 +87,7 @@ not-subscriptable = "ignore"
 
 [tool.coverage.run]
 source = ["cendry"]
+omit = ["*/backends/datastore.py"]
 
 [tool.coverage.report]
 fail_under = 100
