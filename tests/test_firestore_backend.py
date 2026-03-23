@@ -238,3 +238,143 @@ class TestFirestoreBackendExceptionTranslation:
 
         with pytest.raises(DocumentNotFoundError):
             backend.update_doc(doc_ref, {"name": "LA"})
+
+
+class TestFirestoreBackendQueries:
+    def test_query(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        col_ref = MagicMock()
+        result = backend.query(col_ref)
+        assert result is col_ref
+
+    def test_query_group(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        backend.query_group("cities")
+        client.collection_group.assert_called_once_with("cities")
+
+    def test_apply_filter(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        query = MagicMock()
+        backend.apply_filter(query, "state", "==", "CA")
+        query.where.assert_called_once()
+
+    def test_apply_order(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        query = MagicMock()
+        backend.apply_order(query, "population", "DESCENDING")
+        query.order_by.assert_called_once_with("population", direction="DESCENDING")
+
+    def test_apply_limit(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        query = MagicMock()
+        backend.apply_limit(query, 10)
+        query.limit.assert_called_once_with(10)
+
+    def test_apply_cursor_start_after(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        query = MagicMock()
+        cursor = MagicMock()
+        backend.apply_cursor(query, "start_after", cursor)
+        query.start_after.assert_called_once_with(cursor)
+
+    def test_apply_cursor_start_at(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        query = MagicMock()
+        cursor = MagicMock()
+        backend.apply_cursor(query, "start_at", cursor)
+        query.start_at.assert_called_once_with(cursor)
+
+    def test_apply_cursor_end_before(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        query = MagicMock()
+        cursor = MagicMock()
+        backend.apply_cursor(query, "end_before", cursor)
+        query.end_before.assert_called_once_with(cursor)
+
+    def test_apply_cursor_end_at(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        query = MagicMock()
+        cursor = MagicMock()
+        backend.apply_cursor(query, "end_at", cursor)
+        query.end_at.assert_called_once_with(cursor)
+
+    def test_stream(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        doc1 = _mock_doc("SF", {"name": "SF"})
+        doc2 = _mock_doc("LA", {"name": "LA"})
+        query = MagicMock()
+        query.stream.return_value = [doc1, doc2]
+
+        results = list(backend.stream(query))
+        assert len(results) == 2
+        assert results[0].doc_id == "SF"
+
+    def test_select_fields(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        query = MagicMock()
+        backend.select_fields(query, ["name", "state"])
+        query.select.assert_called_once_with(["name", "state"])
+
+    def test_count(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        query = MagicMock()
+        agg_result = MagicMock()
+        agg_result.value = 42
+        query.count.return_value.get.return_value = [[agg_result]]
+
+        assert backend.count(query) == 42
+
+    def test_on_doc_snapshot(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        doc_ref = MagicMock()
+        callback = MagicMock()
+        backend.on_doc_snapshot(doc_ref, callback)
+        doc_ref.on_snapshot.assert_called_once_with(callback)
+
+    def test_on_query_snapshot(self):
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        query = MagicMock()
+        callback = MagicMock()
+        backend.on_query_snapshot(query, callback)
+        query.on_snapshot.assert_called_once_with(callback)
+
+    def test_apply_composite_and(self):
+        from cendry.model import FieldFilterResult
+
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        query = MagicMock()
+        filters = [
+            FieldFilterResult("state", "==", "CA"),
+            FieldFilterResult("population", ">", 100000),
+        ]
+        backend.apply_composite(query, "AND", filters)
+        query.where.assert_called_once()
+
+    def test_apply_composite_nested(self):
+        from cendry import And, Or
+        from cendry.model import FieldFilterResult
+
+        client = _mock_client()
+        backend = FirestoreBackend(client=client)
+        query = MagicMock()
+        nested = And(
+            Or(FieldFilterResult("state", "==", "CA"), FieldFilterResult("state", "==", "NY")),
+            FieldFilterResult("population", ">", 100000),
+        )
+        backend.apply_composite(query, "AND", list(nested.filters))
+        query.where.assert_called_once()

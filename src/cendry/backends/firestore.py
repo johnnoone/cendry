@@ -7,9 +7,14 @@ from typing import Any, Literal
 from google.api_core.exceptions import NotFound
 from google.cloud.exceptions import Conflict
 from google.cloud.firestore_v1._helpers import LastUpdateOption
+from google.cloud.firestore_v1.base_query import And as FsAnd
+from google.cloud.firestore_v1.base_query import FieldFilter as FsFieldFilter
+from google.cloud.firestore_v1.base_query import Or as FsOr
 
 from ..backends.types import DocResult, WriteResult
 from ..exceptions import DocumentAlreadyExistsError, DocumentNotFoundError
+from ..filters import And, Or
+from ..model import FieldFilterResult
 
 
 class FirestoreBackend:
@@ -116,22 +121,33 @@ class FirestoreBackend:
         doc_ref.delete(option=precondition)
 
     def query(self, col_ref: Any) -> Any:
-        raise NotImplementedError  # pragma: no cover
+        return col_ref
 
     def query_group(self, collection: str) -> Any:
-        raise NotImplementedError  # pragma: no cover
+        return self._client.collection_group(collection)
 
     def apply_filter(self, query: Any, field: str, op: str, value: Any) -> Any:
-        raise NotImplementedError  # pragma: no cover
+        return query.where(filter=FsFieldFilter(field, op, value))
 
     def apply_composite(self, query: Any, op: str, filters: list[Any]) -> Any:
-        raise NotImplementedError  # pragma: no cover
+        resolved = [self._resolve_filter(f) for f in filters]
+        composite_cls = FsAnd if op == "AND" else FsOr
+        return query.where(filter=composite_cls(filters=resolved))
+
+    def _resolve_filter(self, f: Any) -> Any:
+        if isinstance(f, FieldFilterResult):
+            return FsFieldFilter(f.field_name, f.op, f.value)
+        if isinstance(f, And):
+            return FsAnd(filters=[self._resolve_filter(sub) for sub in f.filters])
+        if isinstance(f, Or):
+            return FsOr(filters=[self._resolve_filter(sub) for sub in f.filters])
+        return f
 
     def apply_order(self, query: Any, field: str, direction: str) -> Any:
-        raise NotImplementedError  # pragma: no cover
+        return query.order_by(field, direction=direction)
 
     def apply_limit(self, query: Any, n: int) -> Any:
-        raise NotImplementedError  # pragma: no cover
+        return query.limit(n)
 
     def apply_cursor(
         self,
@@ -139,16 +155,26 @@ class FirestoreBackend:
         cursor_type: Literal["start_at", "start_after", "end_at", "end_before"],
         value: Any,
     ) -> Any:
-        raise NotImplementedError  # pragma: no cover
+        method = getattr(query, cursor_type)
+        return method(value)
 
     def stream(self, query: Any) -> Iterator[DocResult]:
-        raise NotImplementedError  # pragma: no cover
+        for snapshot in query.stream():
+            yield DocResult(
+                exists=snapshot.exists,
+                doc_id=snapshot.id,
+                data=snapshot.to_dict() if snapshot.exists else None,
+                update_time=snapshot.update_time if snapshot.exists else None,
+                create_time=snapshot.create_time if snapshot.exists else None,
+                raw=snapshot,
+            )
 
     def select_fields(self, query: Any, fields: list[str]) -> Any:
-        raise NotImplementedError  # pragma: no cover
+        return query.select(fields)
 
     def count(self, query: Any) -> int:
-        raise NotImplementedError  # pragma: no cover
+        result = query.count().get()
+        return int(result[0][0].value)
 
     def new_batch(self) -> Any:
         return self._client.batch()
@@ -160,10 +186,10 @@ class FirestoreBackend:
         batch.commit()
 
     def on_doc_snapshot(self, doc_ref: Any, callback: Any) -> Any:
-        raise NotImplementedError  # pragma: no cover
+        return doc_ref.on_snapshot(callback)
 
     def on_query_snapshot(self, query: Any, callback: Any) -> Any:
-        raise NotImplementedError  # pragma: no cover
+        return query.on_snapshot(callback)
 
     def make_precondition(self, update_time: datetime.datetime) -> Any:
         return LastUpdateOption(update_time)
