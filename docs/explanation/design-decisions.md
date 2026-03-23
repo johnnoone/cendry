@@ -80,21 +80,25 @@ When a field has `alias="displayName"`:
 
 **Why:** Python code should use Python names. Firestore-facing operations use Firestore names. The `by_alias` flag gives control when you need it.
 
-## Thin wrapper over Firestore
+## Thin wrapper over Firestore Native
 
-`FieldFilter` is Firestore's own class, re-exported. Query semantics match Firestore (streaming, collection groups, subcollections). Cendry doesn't invent new query semantics.
+Cendry is a **Firestore Native mode ODM**. `FieldFilter` is Firestore's own class, re-exported. Query semantics match Firestore (streaming, collection groups, subcollections). Cendry doesn't invent new query semantics.
 
 **Why:** Users who know Firestore should feel at home. The library adds typing and convenience, not abstraction.
 
+Datastore mode support exists **solely as a migration bridge** — it is not a first-class backend. Cendry's models, query API, filter syntax, and serialization are all designed around Firestore Native semantics. The Datastore backend translates these semantics to the Datastore API where possible, and raises clear errors where it cannot. The goal is to give users a path from Datastore to Native mode: define models once, validate against existing Datastore data, migrate the database, swap one line of config, done.
+
+Once migrated, there is no reason to keep the Datastore backend. It is intentionally a subset — every feature it lacks is a reason to migrate.
+
 ## Backend protocol — abstraction trade-off
 
-Cendry's principle is "thin wrapper over Firestore — don't abstract away Firestore's API." The `Backend` protocol deliberately breaks this rule.
+Given that Cendry is primarily a Native wrapper, adding a backend abstraction layer is a deliberate exception to the "thin wrapper" principle.
 
-**Why:** Supporting Firestore in Datastore mode enables users to migrate from Datastore to Native mode incrementally. The abstraction is justified because:
+**Why:** The abstraction is justified because:
 
 - It is **bounded** — the Backend protocol is the only new interface, not a full ORM abstraction layer
-- It is **pass-through** — on the Firestore backend, every method is a 2–5 line delegation to the Firestore SDK
-- It is **temporary** — once a user migrates to Native mode, the Datastore backend is dropped
+- It is **pass-through** — on the Firestore backend, every method is a 2–5 line delegation to the Firestore SDK. There is no performance or behavioral cost.
+- It is **transitional** — once a user migrates to Native mode, the Datastore backend is dropped and `Cendry()` defaults to `FirestoreBackend` with zero overhead
 
 ## Datastore backend — supported feature subset
 
