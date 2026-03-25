@@ -1,6 +1,6 @@
 [project]
 name = "cendry"
-version = "0.3.0"
+version = "0.4.0"
 description = "A typed Firestore ODM for Python — define models, query with Python operators, get full IDE support."
 readme = "README.md"
 license = "MIT"

@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.4.0] — 2026-03-25
+
+### Added
+
+- **Auto-timestamps** — `field(auto_now=True)` and `field(auto_now_add=True)` for automatic `datetime` management on `save()`/`create()`
+- **Auto-timestamp validation** — metaclass validates that `auto_now`/`auto_now_add` fields are `datetime` types at class definition time
+- **`apply_auto_timestamps`** — standalone function in `serialize.py` for applying timestamp fields
+
+### Fixed
+
+- **`Field[T]` assignment typing** — added `__set__` overload so type checkers no longer reject instance attribute assignment
+- **mypy typing errors** — resolved typing issues in backends and context modules
+
+### Documentation
+
+- How-to guide for auto-timestamps
+- How-to guide for working with document IDs
+- How-to guide for TTL policies
+- Expanded Document ID section in models how-to
+- Restructured comparison page with Native vs Datastore engine comparison
+- Updated `field()` reference with `Args` docstring block
+
 ## [0.3.0] — 2026-03-23
 
 ### Added
