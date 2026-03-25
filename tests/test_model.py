@@ -329,3 +329,32 @@ def test_field_auto_now_add_sets_implicit_default_none():
 
     e = Event()
     assert e.ts is None
+
+
+def test_auto_now_on_non_datetime_type_raises():
+    with pytest.raises(TypeError, match=r"auto_now.*requires.*datetime.*date.*time"):
+
+        class Bad(Model, collection="bad"):
+            name: Field[str] = field(auto_now=True)
+
+
+def test_auto_now_add_on_non_datetime_type_raises():
+    with pytest.raises(TypeError, match=r"auto_now.*requires.*datetime.*date.*time"):
+
+        class Bad(Model, collection="bad"):
+            name: Field[str] = field(auto_now_add=True)
+
+
+def test_auto_now_on_datetime_type_ok():
+    class Event(Model, collection="events"):
+        ts: Field[datetime.datetime | None] = field(auto_now=True)
+
+
+def test_auto_now_on_date_type_ok():
+    class Event(Model, collection="events"):
+        d: Field[datetime.date | None] = field(auto_now=True)
+
+
+def test_auto_now_on_time_type_ok():
+    class Event(Model, collection="events"):
+        t: Field[datetime.time | None] = field(auto_now=True)

@@ -18,6 +18,8 @@ _SCALAR_TYPES: frozenset[type] = frozenset(
         bytes,
         Decimal,
         datetime.datetime,
+        datetime.date,
+        datetime.time,
         GeoPoint,
         DocumentReference,
     }

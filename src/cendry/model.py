@@ -225,6 +225,26 @@ def _unwrap_field_type(hint: Any) -> Any:
     return hint  # pragma: no cover
 
 
+def _resolve_inner_type_for_auto(hint: Any) -> type | None:
+    """Resolve a type hint to a concrete type, unwrapping Optional.
+
+    Duplicated from serialize._resolve_inner_type to avoid circular import
+    (model.py cannot import from serialize.py).
+    """
+    import types as _types
+
+    if hint is None or isinstance(hint, str):
+        return None  # pragma: no cover
+    if isinstance(hint, _types.UnionType):
+        args = get_args(hint)
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1:
+            hint = non_none[0]
+    if isinstance(hint, type):
+        return hint
+    return None  # pragma: no cover
+
+
 @dataclass_transform(kw_only_default=True, field_specifiers=(Field, field))
 class _MapMeta(type):
     """Metaclass for Map that applies dataclass and sets up field descriptors."""
@@ -261,6 +281,24 @@ class _MapMeta(type):
         for attr_name, hint in raw_annotations.items():
             inner = _unwrap_field_type(hint)
             default_registry.validate(attr_name, inner, name)
+
+        import datetime as _dt
+
+        _auto_now_types = (_dt.datetime, _dt.date, _dt.time)
+        for attr_name, hint in raw_annotations.items():
+            inner = _unwrap_field_type(hint)
+            field_val = namespace.get(attr_name) or getattr(cls, attr_name, None)
+            if isinstance(field_val, dataclasses.Field) and field_val.metadata:
+                has_auto = field_val.metadata.get(METADATA_AUTO_NOW) or field_val.metadata.get(
+                    METADATA_AUTO_NOW_ADD
+                )
+                if has_auto:
+                    resolved = _resolve_inner_type_for_auto(inner)
+                    if resolved is None or not issubclass(resolved, _auto_now_types):
+                        raise TypeError(
+                            f"Field '{attr_name}' on {name}: auto_now/auto_now_add requires "
+                            f"a datetime, date, or time type"
+                        )
 
         cls = dataclasses.dataclass(kw_only=True)(cls)  # type: ignore[arg-type,assignment]  # mypy: metaclass type mismatch
 
