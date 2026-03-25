@@ -1,9 +1,13 @@
+import datetime
+from unittest.mock import patch
+
 import pytest
 
 import cendry
 from cendry import Field, Map, Model
 from cendry import field as cendry_field
 from cendry.serialize import (
+    apply_auto_timestamps,
     deserialize,
     from_dict,
     resolve_field_hint,
@@ -291,3 +295,135 @@ def test_serialize_update_value_without_hint_list():
     # Without hint, type(value) is list, no generic info — elements pass through
     assert len(result) == 1
     assert isinstance(result[0], Celsius)
+
+
+# --- apply_auto_timestamps ---
+
+FIXED_DT = datetime.datetime(2026, 3, 25, 12, 0, 0, tzinfo=datetime.UTC)
+
+
+class AutoNowModel(Model, collection="auto_now_test"):
+    title: Field[str]
+    updated_at: Field[datetime.datetime | None] = cendry_field(auto_now=True)
+
+
+class AutoNowAddModel(Model, collection="auto_now_add_test"):
+    title: Field[str]
+    created_at: Field[datetime.datetime | None] = cendry_field(auto_now_add=True)
+
+
+class AutoNowDateModel(Model, collection="auto_now_date_test"):
+    title: Field[str]
+    updated_on: Field[datetime.date | None] = cendry_field(auto_now=True)
+
+
+class AutoNowTimeModel(Model, collection="auto_now_time_test"):
+    title: Field[str]
+    updated_time: Field[datetime.time | None] = cendry_field(auto_now=True)
+
+
+class AutoNowAddDateModel(Model, collection="auto_now_add_date_test"):
+    title: Field[str]
+    created_on: Field[datetime.date | None] = cendry_field(auto_now_add=True)
+
+
+class AutoNowAddTimeModel(Model, collection="auto_now_add_time_test"):
+    title: Field[str]
+    created_time: Field[datetime.time | None] = cendry_field(auto_now_add=True)
+
+
+@patch("cendry.serialize.datetime")
+def test_auto_now_always_overwrites(mock_dt):
+    mock_dt.datetime.now.return_value = FIXED_DT
+    mock_dt.UTC = datetime.UTC
+    instance = AutoNowModel(
+        title="hello",
+        updated_at=datetime.datetime(2020, 1, 1, tzinfo=datetime.UTC),
+    )
+    apply_auto_timestamps(instance)
+    assert instance.updated_at == FIXED_DT
+    mock_dt.datetime.now.assert_called_once_with(tz=datetime.UTC)
+
+
+@patch("cendry.serialize.datetime")
+def test_auto_now_fills_none(mock_dt):
+    mock_dt.datetime.now.return_value = FIXED_DT
+    mock_dt.UTC = datetime.UTC
+    instance = AutoNowModel(title="hello")
+    apply_auto_timestamps(instance)
+    assert instance.updated_at == FIXED_DT
+
+
+@patch("cendry.serialize.datetime")
+def test_auto_now_add_fills_none(mock_dt):
+    mock_dt.datetime.now.return_value = FIXED_DT
+    mock_dt.UTC = datetime.UTC
+    instance = AutoNowAddModel(title="hello")
+    apply_auto_timestamps(instance)
+    assert instance.created_at == FIXED_DT
+
+
+@patch("cendry.serialize.datetime")
+def test_auto_now_add_preserves_existing_value(mock_dt):
+    mock_dt.datetime.now.return_value = FIXED_DT
+    mock_dt.UTC = datetime.UTC
+    existing = datetime.datetime(2020, 1, 1, tzinfo=datetime.UTC)
+    instance = AutoNowAddModel(title="hello", created_at=existing)
+    apply_auto_timestamps(instance)
+    assert instance.created_at == existing
+
+
+@patch("cendry.serialize.datetime")
+def test_auto_now_with_date_type(mock_dt):
+    mock_dt.datetime.now.return_value = FIXED_DT
+    mock_dt.UTC = datetime.UTC
+    instance = AutoNowDateModel(title="hello")
+    apply_auto_timestamps(instance)
+    assert instance.updated_on == FIXED_DT.date()
+
+
+@patch("cendry.serialize.datetime")
+def test_auto_now_with_time_type(mock_dt):
+    mock_dt.datetime.now.return_value = FIXED_DT
+    mock_dt.UTC = datetime.UTC
+    instance = AutoNowTimeModel(title="hello")
+    apply_auto_timestamps(instance)
+    assert instance.updated_time == FIXED_DT.time()
+
+
+@patch("cendry.serialize.datetime")
+def test_auto_now_add_with_date_type(mock_dt):
+    mock_dt.datetime.now.return_value = FIXED_DT
+    mock_dt.UTC = datetime.UTC
+    instance = AutoNowAddDateModel(title="hello")
+    apply_auto_timestamps(instance)
+    assert instance.created_on == FIXED_DT.date()
+
+
+@patch("cendry.serialize.datetime")
+def test_auto_now_add_with_time_type(mock_dt):
+    mock_dt.datetime.now.return_value = FIXED_DT
+    mock_dt.UTC = datetime.UTC
+    instance = AutoNowAddTimeModel(title="hello")
+    apply_auto_timestamps(instance)
+    assert instance.created_time == FIXED_DT.time()
+
+
+def test_apply_auto_timestamps_no_auto_fields():
+    """Models with no auto_now/auto_now_add fields are a no-op."""
+    instance = City(**CITY_DATA)
+    original_name = instance.name
+    apply_auto_timestamps(instance)
+    assert instance.name == original_name
+
+
+class AliasOnlyModel(Model, collection="alias_only_test"):
+    title: Field[str]
+    ref_name: Field[str] = cendry_field(alias="refName")
+
+
+def test_apply_auto_timestamps_alias_only_field():
+    """Fields with alias metadata but no auto_now flags are skipped."""
+    instance = AliasOnlyModel(title="hello", ref_name="x")
+    apply_auto_timestamps(instance)
+    assert instance.ref_name == "x"

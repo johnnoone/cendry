@@ -1,11 +1,19 @@
 import dataclasses
+import datetime
 import functools
 import types
 from typing import Any, get_args, get_origin, get_type_hints
 
 from google.cloud.firestore_v1.transforms import Sentinel, _NumericValue, _ValueList
 
-from .model import METADATA_ALIAS, METADATA_ENUM_BY, Map, Model
+from .model import (
+    METADATA_ALIAS,
+    METADATA_AUTO_NOW,
+    METADATA_AUTO_NOW_ADD,
+    METADATA_ENUM_BY,
+    Map,
+    Model,
+)
 from .types import TypeRegistry, default_registry
 
 
@@ -361,6 +369,54 @@ def validate_required_fields(instance: Model) -> None:
     missing = [n for n in _required_field_names(type(instance)) if getattr(instance, n) is None]
     if missing:
         raise CendryError(f"Required fields are None: {', '.join(missing)}")
+
+
+@functools.cache
+def _auto_timestamp_fields(cls: type) -> tuple[tuple[str, str, str], ...]:
+    """Cached list of (field_name, time_type, mode) for auto-timestamp fields.
+
+    time_type is 'datetime', 'date', or 'time'.
+    mode is 'auto_now' or 'auto_now_add'.
+    """
+    import datetime as _dt
+
+    _type_map: dict[type, str] = {
+        _dt.datetime: "datetime",
+        _dt.date: "date",
+        _dt.time: "time",
+    }
+    result: list[tuple[str, str, str]] = []
+    hints = _cached_type_hints(cls)
+    for f in dataclasses.fields(cls):
+        if not f.metadata:
+            continue
+        if f.metadata.get(METADATA_AUTO_NOW):
+            mode = "auto_now"
+        elif f.metadata.get(METADATA_AUTO_NOW_ADD):
+            mode = "auto_now_add"
+        else:
+            continue
+        inner = _resolve_inner_type(hints.get(f.name))
+        time_type = _type_map.get(inner, "datetime") if inner is not None else "datetime"
+        result.append((f.name, time_type, mode))
+    return tuple(result)
+
+
+def apply_auto_timestamps(instance: Model) -> None:
+    """Mutate instance fields with auto_now / auto_now_add before a write."""
+    fields = _auto_timestamp_fields(type(instance))
+    if not fields:
+        return
+    now = datetime.datetime.now(tz=datetime.UTC)
+    for field_name, time_type, mode in fields:
+        if mode == "auto_now_add" and getattr(instance, field_name) is not None:
+            continue
+        if time_type == "date":
+            setattr(instance, field_name, now.date())
+        elif time_type == "time":
+            setattr(instance, field_name, now.time())
+        else:
+            setattr(instance, field_name, now)
 
 
 def to_dict(
