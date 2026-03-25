@@ -1,4 +1,84 @@
-# Firestore SDK vs NDB vs Cendry
+# Comparisons
+
+This page covers two topics: how Firestore's two database modes differ at the engine level, and how the available Python client libraries compare for day-to-day use.
+
+---
+
+## Firestore Native Mode vs Datastore Mode
+
+Firestore runs in two modes that share the same storage engine but expose different APIs and capabilities. Understanding these differences matters when choosing a mode for new projects or migrating existing ones.
+
+### Identity
+
+| Aspect | Native Mode | Datastore Mode |
+|--------|-------------|----------------|
+| **ID type** | String only | String name or 64-bit integer |
+| **Auto-generation** | Random 20-character string | Auto-allocated integer or string |
+| **Key structure** | Document path (`collections/docId/subcollections/docId`) | Ancestor key chain (`Kind/id/Kind/id`) |
+
+### Data model
+
+| Aspect | Native Mode | Datastore Mode |
+|--------|-------------|----------------|
+| **Terminology** | Documents and collections | Entities and kinds |
+| **Nesting** | Subcollections under documents | Ancestor paths (parent keys) |
+| **Grouping** | Collection group queries across subcollections | Ancestor queries within a key hierarchy |
+
+### Data types
+
+Both modes share most value types: string, integer, float, boolean, timestamp, bytes, geopoint, array, map, and null.
+
+| Aspect | Native Mode | Datastore Mode |
+|--------|-------------|----------------|
+| **References** | Document references (path-based) | Key references (ancestor-chain-based) |
+
+### Queries
+
+| Capability | Native Mode | Datastore Mode |
+|------------|-------------|----------------|
+| **Equality / range filters** | Yes | Yes |
+| **OR filters** | Yes | Yes (modern Firestore-backed) |
+| **`!=` and `NOT_IN`** | Yes | Yes (modern Firestore-backed) |
+| **Collection group queries** | Yes | No |
+| **Real-time listeners** | Yes | No |
+| **Projection queries** | Yes | Yes |
+| **Ancestor / parent queries** | Subcollection path | Ancestor key queries |
+
+### Writes
+
+| Capability | Native Mode | Datastore Mode |
+|------------|-------------|----------------|
+| **Create-only (fail on duplicate)** | `create()` | `insert()` |
+| **Partial update** | Yes (native) | Yes |
+| **Field transforms** (`Increment`, `SERVER_TIMESTAMP`) | Yes | No |
+| **TTL policies** | Yes | No |
+
+### Transactions
+
+| Capability | Native Mode | Datastore Mode |
+|------------|-------------|----------------|
+| **Max mutations per transaction** | 500 | 500 (modern Firestore-backed) |
+| **Read-only transactions** | Yes | No |
+| **Entity group limits** | N/A | Removed in modern Firestore-backed Datastore |
+
+### Consistency
+
+Both modes are **strongly consistent** for reads and queries. Datastore was eventually consistent for non-ancestor queries historically, but modern Firestore-backed Datastore is strongly consistent.
+
+### Limits
+
+| Limit | Native Mode | Datastore Mode |
+|-------|-------------|----------------|
+| **Max document/entity size** | 1 MiB | 1 MiB |
+| **Max field nesting depth** | 20 levels | No explicit limit |
+| **Recommended write rate** | 1 write/sec per document | 1 write/sec per entity |
+
+!!! info "Cendry targets Native mode"
+    Cendry is built for Firestore in Native mode. If you're moving away from Datastore mode, see [Migrate from Datastore to Native](../how-to/migrate-datastore-to-native.md).
+
+---
+
+## Library & API Comparison
 
 Side-by-side comparison of common use cases across three approaches:
 
@@ -11,7 +91,7 @@ Side-by-side comparison of common use cases across three approaches:
 
 ---
 
-## Define a model
+### Define a model
 
 === "NDB (deprecated)"
 
@@ -60,7 +140,7 @@ Side-by-side comparison of common use cases across three approaches:
 
 ---
 
-## Read a document
+### Read a document
 
 === "NDB (deprecated)"
 
@@ -98,7 +178,7 @@ Side-by-side comparison of common use cases across three approaches:
 
 ---
 
-## Query with filters
+### Query with filters
 
 === "NDB (deprecated)"
 
@@ -142,7 +222,7 @@ Side-by-side comparison of common use cases across three approaches:
 
 ---
 
-## Save a document
+### Save a document
 
 === "NDB (deprecated)"
 
@@ -172,7 +252,7 @@ Side-by-side comparison of common use cases across three approaches:
 
 ---
 
-## Partial update
+### Partial update
 
 === "NDB (deprecated)"
 
@@ -210,7 +290,7 @@ Side-by-side comparison of common use cases across three approaches:
 
 ---
 
-## Delete a document
+### Delete a document
 
 === "NDB (deprecated)"
 
@@ -236,7 +316,7 @@ Side-by-side comparison of common use cases across three approaches:
 
 ---
 
-## Batch writes
+### Batch writes
 
 === "NDB (deprecated)"
 
@@ -269,7 +349,7 @@ Side-by-side comparison of common use cases across three approaches:
 
 ---
 
-## Transactions
+### Transactions
 
 === "NDB (deprecated)"
 
@@ -322,7 +402,7 @@ Side-by-side comparison of common use cases across three approaches:
 
 ---
 
-## Nested data (Maps)
+### Nested data (Maps)
 
 === "NDB (deprecated)"
 
@@ -354,7 +434,7 @@ Side-by-side comparison of common use cases across three approaches:
 
 ---
 
-## Optimistic locking
+### Optimistic locking
 
 === "NDB (deprecated)"
 
@@ -381,7 +461,7 @@ Side-by-side comparison of common use cases across three approaches:
 
 ---
 
-## Summary
+### Summary
 
 | Aspect | NDB (deprecated) | Firestore SDK | Cendry |
 |--------|------------------|--------------|--------|
@@ -398,11 +478,11 @@ Side-by-side comparison of common use cases across three approaches:
 
 ---
 
-## Complete feature matrix
+### Complete feature matrix
 
 Comprehensive feature-by-feature comparison. Green (✅) = supported, yellow (🔶) = partial, red (❌) = not supported.
 
-### Model & Schema
+#### Model & Schema
 
 | Feature | NDB | Firestore SDK | Cendry | Notes |
 |---------|-----|---------------|--------|-------|
@@ -418,7 +498,7 @@ Comprehensive feature-by-feature comparison. Green (✅) = supported, yellow (�
 | Custom type handlers | ❌ | ❌ | ✅ `register_type()` | Serialize/deserialize custom types |
 | Type validation at definition | ❌ | ❌ | ✅ `TypeRegistry` | Catches invalid types before runtime |
 
-### Read Operations
+#### Read Operations
 
 | Feature | NDB | Firestore SDK | Cendry | Notes |
 |---------|-----|---------------|--------|-------|
@@ -429,7 +509,7 @@ Comprehensive feature-by-feature comparison. Green (✅) = supported, yellow (�
 | Distinct queries | ✅ `distinct_on=[...]` | ❌ Not in SDK | ❌ | Not supported by Firestore Python SDK |
 | Collection groups | ❌ | ✅ `collection_group()` | ✅ `ctx.select_group()` | NDB doesn't have this concept |
 
-### Query & Filtering
+#### Query & Filtering
 
 | Feature | NDB | Firestore SDK | Cendry | Notes |
 |---------|-----|---------------|--------|-------|
@@ -445,7 +525,7 @@ Comprehensive feature-by-feature comparison. Green (✅) = supported, yellow (�
 | Exactly one | ❌ | ❌ Manual | ✅ `.one()` | Raises if 0 or >1 |
 | Copy-pasteable repr | ❌ | ❌ | ✅ | All queries produce valid Python repr |
 
-### Write Operations
+#### Write Operations
 
 | Feature | NDB | Firestore SDK | Cendry | Notes |
 |---------|-----|---------------|--------|-------|
@@ -458,7 +538,7 @@ Comprehensive feature-by-feature comparison. Green (✅) = supported, yellow (�
 | Field validation on write | ❌ | ❌ | ✅ `validate_required_fields` | |
 | Firestore transforms | N/A | ✅ `Increment`, etc. | ✅ Re-exported | `DELETE_FIELD`, `SERVER_TIMESTAMP`, etc. |
 
-### Batch & Transactions
+#### Batch & Transactions
 
 | Feature | NDB | Firestore SDK | Cendry | Notes |
 |---------|-----|---------------|--------|-------|
@@ -470,7 +550,7 @@ Comprehensive feature-by-feature comparison. Green (✅) = supported, yellow (�
 | Transaction reads | ✅ Implicit | ✅ `transaction.get()` | ✅ `txn.get()` / `txn.find()` | |
 | Read-only transactions | ❌ | ✅ `read_only=True` | ✅ `read_only=True` | |
 
-### Metadata & Concurrency
+#### Metadata & Concurrency
 
 | Feature | NDB | Firestore SDK | Cendry | Notes |
 |---------|-----|---------------|--------|-------|
@@ -478,7 +558,7 @@ Comprehensive feature-by-feature comparison. Green (✅) = supported, yellow (�
 | Optimistic locking | ❌ Use transactions | ✅ `LastUpdateOption` | ✅ `if_unchanged=True` | Precondition-based |
 | Real-time listeners | ❌ | ✅ `on_snapshot()` | ✅ `query.on_snapshot(cb)` | Sync only (SDK limitation) |
 
-### Async Support
+#### Async Support
 
 | Feature | NDB | Firestore SDK | Cendry | Notes |
 |---------|-----|---------------|--------|-------|
@@ -489,7 +569,7 @@ Comprehensive feature-by-feature comparison. Green (✅) = supported, yellow (�
 | Async batch | ❌ | ✅ `AsyncWriteBatch` | ✅ `AsyncBatch` | |
 | Async transactions | ❌ | ✅ `AsyncTransaction` | ✅ `AsyncTxn` | |
 
-### Developer Experience
+#### Developer Experience
 
 | Feature | NDB | Firestore SDK | Cendry | Notes |
 |---------|-----|---------------|--------|-------|
@@ -502,7 +582,7 @@ Comprehensive feature-by-feature comparison. Green (✅) = supported, yellow (�
 
 ---
 
-## What Cendry doesn't have (yet)
+### What Cendry doesn't have (yet)
 
 Features from NDB or the Firestore SDK that Cendry could add in future versions:
 
