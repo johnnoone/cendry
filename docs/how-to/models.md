@@ -67,12 +67,26 @@ All inherited fields work with filters, ordering, and serialization.
 
 ## Document ID
 
-Every `Model` has `id: str | None`, defaulting to `None`:
+Every `Model` has `id: str | None`, defaulting to `None`. Firestore Native mode only supports **string** document IDs.
 
 ```python
 city = ctx.get(City, "SF")
 print(city.id)  # "SF"
 ```
+
+Key constraints:
+
+| Constraint | Detail |
+|------------|--------|
+| Max size | 1,500 bytes |
+| Forbidden values | `.` and `..` |
+| Forbidden characters | `/` (forward slash) |
+| Avoid | Monotonically increasing IDs (causes write hotspots) |
+
+!!! info "Datastore mode supports integer IDs"
+    Firestore in Datastore mode allows both string and 64-bit integer IDs. Cendry targets Native mode, so `id` is always `str | None`. See [Comparisons](../explanation/comparison.md#identity) for details.
+
+See [Work with Document IDs](document-ids.md) for auto-generation, manual IDs, and best practices.
 
 ## Enum fields
 
