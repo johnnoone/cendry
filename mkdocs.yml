@@ -109,6 +109,6 @@ nav:
   - Explanation:
     - explanation/index.md
     - What is Firestore?: explanation/firestore.md
-    - SDK vs Cendry: explanation/comparison.md
+    - Comparisons: explanation/comparison.md
     - Architecture: explanation/architecture.md
     - Design Decisions: explanation/design-decisions.md
