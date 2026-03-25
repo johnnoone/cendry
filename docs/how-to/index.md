@@ -13,6 +13,9 @@ Practical recipes for specific tasks. Each guide is self-contained — jump to w
 **[Auto-Timestamps](auto-timestamps.md)**
 :   Automatically set created/updated timestamps on save.
 
+**[Use TTL Policies](ttl.md)**
+:   Auto-delete documents after a timestamp with Firestore TTL.
+
 **[Write, Update, and Delete](writing.md)**
 :   Save, create, update, delete, refresh, optimistic locking.
 
