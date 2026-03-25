@@ -176,6 +176,10 @@ class Field[T]:
         # Never called at runtime — the metaclass replaces Field with FieldDescriptor
         raise NotImplementedError
 
+    def __set__(self, obj: Any, value: T) -> None:  # pragma: no cover
+        # Never called at runtime — the metaclass replaces Field with FieldDescriptor
+        raise NotImplementedError
+
 
 def field(
     *,
