@@ -88,6 +88,7 @@ nav:
     - how-to/index.md
     - Define Models: how-to/models.md
     - Write, Update, Delete: how-to/writing.md
+    - Auto-Timestamps: how-to/auto-timestamps.md
     - Batch and Transactions: how-to/batch-and-transactions.md
     - Filter and Query: how-to/filtering.md
     - Use Aliases: how-to/aliases.md

@@ -81,6 +81,8 @@ field(
     default_factory=MISSING,
     alias: str | None = None,
     enum_by: str = "value",
+    auto_now: bool = False,
+    auto_now_add: bool = False,
 ) -> Any
 ```
 
@@ -90,3 +92,5 @@ field(
 | `default_factory` | Callable that returns the default |
 | `alias` | Firestore field name (if different from Python name) |
 | `enum_by` | `"value"` (default) or `"name"` for enum storage |
+| `auto_now` | If `True`, always set to current UTC time on `save()`/`create()` |
+| `auto_now_add` | If `True`, set to current UTC time on `save()`/`create()` only if `None` |
