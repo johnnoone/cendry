@@ -1,4 +1,5 @@
 import dataclasses
+import datetime
 
 import pytest
 
@@ -294,3 +295,37 @@ def test_field_descriptor_not_hashable():
 
     with pytest.raises(TypeError):
         hash(City.state)
+
+
+# --- auto_now / auto_now_add ---
+
+
+def test_field_auto_now_and_auto_now_add_mutually_exclusive():
+    with pytest.raises(ValueError, match="Cannot combine auto_now and auto_now_add"):
+        field(auto_now=True, auto_now_add=True)
+
+
+def test_field_auto_now_with_explicit_default_raises():
+    with pytest.raises(ValueError, match="Cannot combine auto_now/auto_now_add with explicit"):
+        field(auto_now=True, default=None)
+
+
+def test_field_auto_now_add_with_explicit_default_factory_raises():
+    with pytest.raises(ValueError, match="Cannot combine auto_now/auto_now_add with explicit"):
+        field(auto_now_add=True, default_factory=datetime.datetime.now)
+
+
+def test_field_auto_now_sets_implicit_default_none():
+    class Event(Model, collection="events"):
+        ts: Field[datetime.datetime | None] = field(auto_now=True)
+
+    e = Event()
+    assert e.ts is None
+
+
+def test_field_auto_now_add_sets_implicit_default_none():
+    class Event(Model, collection="events"):
+        ts: Field[datetime.datetime | None] = field(auto_now_add=True)
+
+    e = Event()
+    assert e.ts is None

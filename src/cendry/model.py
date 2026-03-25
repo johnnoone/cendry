@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 # Metadata keys for dataclass field metadata
 METADATA_ALIAS = "cendry_alias"
 METADATA_ENUM_BY = "cendry_enum_by"
+METADATA_AUTO_NOW = "cendry_auto_now"
+METADATA_AUTO_NOW_ADD = "cendry_auto_now_add"
 
 # Maps operator strings to dunder symbols for repr
 _DUNDER_OPS: dict[str, str] = {"==": "==", "!=": "!=", ">": ">", ">=": ">=", "<": "<", "<=": "<="}
@@ -181,14 +183,30 @@ def field(
     default_factory: Any = dataclasses.MISSING,
     alias: str | None = None,
     enum_by: str = "value",
+    auto_now: bool = False,
+    auto_now_add: bool = False,
 ) -> Any:
     """Configure a model field with defaults and metadata."""
+    if auto_now and auto_now_add:
+        raise ValueError("Cannot combine auto_now and auto_now_add on the same field")
+    if (auto_now or auto_now_add) and (
+        default is not dataclasses.MISSING or default_factory is not dataclasses.MISSING
+    ):
+        raise ValueError(
+            "Cannot combine auto_now/auto_now_add with explicit default or default_factory"
+        )
     metadata: dict[str, Any] = {}
     if alias is not None:
         metadata[METADATA_ALIAS] = alias
     if enum_by != "value":
         metadata[METADATA_ENUM_BY] = enum_by
+    if auto_now:
+        metadata[METADATA_AUTO_NOW] = True
+    if auto_now_add:
+        metadata[METADATA_AUTO_NOW_ADD] = True
     kwargs: dict[str, Any] = {}
+    if auto_now or auto_now_add:
+        kwargs["default"] = None
     if default is not dataclasses.MISSING:
         kwargs["default"] = default
     if default_factory is not dataclasses.MISSING:
