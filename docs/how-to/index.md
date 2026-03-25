@@ -7,6 +7,12 @@ Practical recipes for specific tasks. Each guide is self-contained — jump to w
 **[Define Models](models.md)**
 :   Models, Maps, fields, defaults, enums, inheritance.
 
+**[Work with Document IDs](document-ids.md)**
+:   ID types, constraints, auto-generation, manual IDs.
+
+**[Auto-Timestamps](auto-timestamps.md)**
+:   Automatically set created/updated timestamps on save.
+
 **[Write, Update, and Delete](writing.md)**
 :   Save, create, update, delete, refresh, optimistic locking.
 
