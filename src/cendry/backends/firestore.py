@@ -2,7 +2,7 @@
 
 import datetime
 from collections.abc import AsyncIterator, Iterator
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from google.api_core.exceptions import NotFound
 from google.cloud.exceptions import Conflict
@@ -39,7 +39,7 @@ class _FirestoreQueryMixin:
         return col_ref.document(doc_id)
 
     def doc_ref_id(self, doc_ref: Any) -> str:
-        return doc_ref.id
+        return cast("str", doc_ref.id)
 
     def query(self, col_ref: Any) -> Any:
         return col_ref

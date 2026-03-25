@@ -165,14 +165,14 @@ class _DatastoreWriterAdapter:
         return getattr(self._writer, "id", None)
 
     def set(self, key: Any, data: dict[str, Any]) -> None:
-        entity = datastore.Entity(key=key)
+        entity = datastore.Entity(key=key)  # type: ignore[no-untyped-call]
         entity.update(data)
         self._writer.put(entity)
 
     def create(self, key: Any, data: dict[str, Any]) -> None:
         # create semantics (duplicate check) is handled at the backend level,
         # not by the raw writer, so this is identical to set.
-        entity = datastore.Entity(key=key)
+        entity = datastore.Entity(key=key)  # type: ignore[no-untyped-call]
         entity.update(data)
         self._writer.put(entity)
 
@@ -210,7 +210,7 @@ class DatastoreBackend:
 
     def __init__(self, *, client: Any = None) -> None:
         if client is None:  # pragma: no cover
-            client = datastore.Client()
+            client = datastore.Client()  # type: ignore[no-untyped-call]
         self._client = client
 
     def get_collection_ref(
@@ -299,7 +299,7 @@ class DatastoreBackend:
     def set_doc(
         self, doc_ref: Any, data: dict[str, Any], *, writer: Any | None = None
     ) -> WriteResult:
-        entity = datastore.Entity(key=doc_ref)
+        entity = datastore.Entity(key=doc_ref)  # type: ignore[no-untyped-call]
         entity.update(data)
         target = writer if writer is not None else self._client
         target.put(entity)
@@ -311,7 +311,7 @@ class DatastoreBackend:
         existing = self._client.get(doc_ref)
         if existing is not None:
             raise DocumentAlreadyExistsError("", str(doc_ref.id_or_name))
-        entity = datastore.Entity(key=doc_ref)
+        entity = datastore.Entity(key=doc_ref)  # type: ignore[no-untyped-call]
         entity.update(data)
         target = writer if writer is not None else self._client
         target.put(entity)
@@ -355,7 +355,7 @@ class DatastoreBackend:
     def apply_filter(self, query: _QueryWrapper, field: str, op: str, value: Any) -> Any:
         # Datastore uses single '=' for equality, not '=='
         ds_op = "=" if op == "==" else op
-        query.add_filter(filter=PropertyFilter(field, ds_op, value))
+        query.add_filter(filter=PropertyFilter(field, ds_op, value))  # type: ignore[no-untyped-call]
         return query
 
     def apply_composite(self, query: _QueryWrapper, op: str, filters: list[Any]) -> _QueryWrapper:
@@ -373,7 +373,7 @@ class DatastoreBackend:
         result: list[Any] = []
         for f in filters:
             if isinstance(f, FieldFilterResult):
-                result.append(PropertyFilter(f.field_name, f.op, f.value))
+                result.append(PropertyFilter(f.field_name, f.op, f.value))  # type: ignore[no-untyped-call]
             elif isinstance(f, And):
                 result.extend(self._extract_filters(list(f.filters)))
             elif isinstance(f, Or):

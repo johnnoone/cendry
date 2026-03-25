@@ -322,7 +322,8 @@ class Cendry(_BaseCendry):
         if is_new:
             instance.id = self._backend.doc_ref_id(doc_ref)
         _set_metadata(instance, update_time=write_result.update_time)
-        return self._backend.doc_ref_id(doc_ref)
+        doc_id: str = self._backend.doc_ref_id(doc_ref)
+        return doc_id
 
     def create(self, instance: T, *, parent: Model | None = None) -> str:
         """Create a document. Raises if it already exists. Returns the document ID.
@@ -353,7 +354,8 @@ class Cendry(_BaseCendry):
         if is_new:
             instance.id = self._backend.doc_ref_id(doc_ref)
         _set_metadata(instance, update_time=write_result.update_time)
-        return self._backend.doc_ref_id(doc_ref)
+        doc_id: str = self._backend.doc_ref_id(doc_ref)
+        return doc_id
 
     @overload
     def delete(
@@ -815,7 +817,8 @@ class AsyncCendry(_BaseCendry):
         if is_new:
             instance.id = self._backend.doc_ref_id(doc_ref)
         _set_metadata(instance, update_time=write_result.update_time)
-        return self._backend.doc_ref_id(doc_ref)
+        doc_id: str = self._backend.doc_ref_id(doc_ref)
+        return doc_id
 
     async def create(self, instance: T, *, parent: Model | None = None) -> str:
         """Create a document. Raises if it already exists. Returns the document ID."""
@@ -835,7 +838,8 @@ class AsyncCendry(_BaseCendry):
         if is_new:
             instance.id = self._backend.doc_ref_id(doc_ref)
         _set_metadata(instance, update_time=write_result.update_time)
-        return self._backend.doc_ref_id(doc_ref)
+        doc_id: str = self._backend.doc_ref_id(doc_ref)
+        return doc_id
 
     @overload
     async def delete(
