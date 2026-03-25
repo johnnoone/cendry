@@ -186,7 +186,21 @@ def field(
     auto_now: bool = False,
     auto_now_add: bool = False,
 ) -> Any:
-    """Configure a model field with defaults and metadata."""
+    """Configure a model field with defaults and metadata.
+
+    Args:
+        default: Default value for the field.
+        default_factory: Callable that returns the default value.
+        alias: Firestore field name if different from the Python attribute name.
+        enum_by: How to store enums — ``"value"`` (default) or ``"name"``.
+        auto_now: If ``True``, always overwrite with current UTC time on
+            ``save()`` / ``create()``. Requires a ``datetime``, ``date``,
+            or ``time`` type. Mutually exclusive with *auto_now_add*.
+        auto_now_add: If ``True``, set to current UTC time on
+            ``save()`` / ``create()`` only when the value is ``None``.
+            Requires a ``datetime``, ``date``, or ``time`` type.
+            Mutually exclusive with *auto_now*.
+    """
     if auto_now and auto_now_add:
         raise ValueError("Cannot combine auto_now and auto_now_add on the same field")
     if (auto_now or auto_now_add) and (
