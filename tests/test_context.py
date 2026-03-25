@@ -1,3 +1,4 @@
+import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -17,6 +18,7 @@ from cendry import (
     Map,
     Model,
     Or,
+    field,
 )
 from cendry.serialize import to_dict
 from cendry.types import BaseTypeHandler, TypeRegistry, default_registry
@@ -1830,3 +1832,68 @@ def test_on_snapshot_document_deleted(mock_firestore_client: MagicMock):
 
     assert len(received) == 1
     assert received[0] is None
+
+
+# --- auto_timestamps integration ---
+
+
+class TimestampedEvent(Model, collection="events"):
+    title: Field[str]
+    created_at: Field[datetime.datetime | None] = field(auto_now_add=True)
+    updated_at: Field[datetime.datetime | None] = field(auto_now=True)
+
+
+@patch("cendry.context.apply_auto_timestamps")
+def test_save_calls_apply_auto_timestamps(mock_apply, mock_firestore_client: MagicMock):
+    mock_firestore_client.collection.return_value.document.return_value.id = "gen-id"
+    now = datetime.datetime.now(tz=datetime.UTC)
+    mock_firestore_client.collection.return_value.document.return_value.set.return_value = (
+        MagicMock(update_time=now)
+    )
+    ctx = Cendry(client=mock_firestore_client)
+    event = TimestampedEvent(title="test")
+    ctx.save(event)
+    mock_apply.assert_called_once_with(event)
+
+
+@patch("cendry.context.apply_auto_timestamps")
+def test_create_calls_apply_auto_timestamps(mock_apply, mock_firestore_client: MagicMock):
+    mock_firestore_client.collection.return_value.document.return_value.id = "gen-id"
+    now = datetime.datetime.now(tz=datetime.UTC)
+    mock_firestore_client.collection.return_value.document.return_value.create.return_value = (
+        MagicMock(update_time=now)
+    )
+    ctx = Cendry(client=mock_firestore_client)
+    event = TimestampedEvent(title="test")
+    ctx.create(event)
+    mock_apply.assert_called_once_with(event)
+
+
+@patch("cendry.context.apply_auto_timestamps")
+@pytest.mark.anyio
+async def test_async_save_calls_apply_auto_timestamps(
+    mock_apply, mock_firestore_client: MagicMock
+):
+    mock_firestore_client.collection.return_value.document.return_value.id = "gen-id"
+    now = datetime.datetime.now(tz=datetime.UTC)
+    set_mock = AsyncMock(return_value=MagicMock(update_time=now))
+    mock_firestore_client.collection.return_value.document.return_value.set = set_mock
+    ctx = AsyncCendry(client=mock_firestore_client)
+    event = TimestampedEvent(title="test")
+    await ctx.save(event)
+    mock_apply.assert_called_once_with(event)
+
+
+@patch("cendry.context.apply_auto_timestamps")
+@pytest.mark.anyio
+async def test_async_create_calls_apply_auto_timestamps(
+    mock_apply, mock_firestore_client: MagicMock
+):
+    mock_firestore_client.collection.return_value.document.return_value.id = "gen-id"
+    now = datetime.datetime.now(tz=datetime.UTC)
+    create_mock = AsyncMock(return_value=MagicMock(update_time=now))
+    mock_firestore_client.collection.return_value.document.return_value.create = create_mock
+    ctx = AsyncCendry(client=mock_firestore_client)
+    event = TimestampedEvent(title="test")
+    await ctx.create(event)
+    mock_apply.assert_called_once_with(event)

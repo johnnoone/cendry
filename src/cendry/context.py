@@ -15,6 +15,7 @@ from .metadata import _clear_metadata, _set_metadata, get_metadata
 from .model import FieldFilterResult, Model
 from .query import AsyncQuery, Query
 from .serialize import (
+    apply_auto_timestamps,
     deserialize,
     resolve_field_hint,
     resolve_field_path,
@@ -310,6 +311,7 @@ class Cendry(_BaseCendry):
         Returns:
             The document ID (auto-generated if instance.id was None).
         """
+        apply_auto_timestamps(instance)
         validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
         doc_ref = self._backend.get_doc_ref(col_ref, instance.id)
@@ -335,6 +337,7 @@ class Cendry(_BaseCendry):
         Raises:
             DocumentAlreadyExistsError: If the document already exists.
         """
+        apply_auto_timestamps(instance)
         validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
         doc_ref = self._backend.get_doc_ref(col_ref, instance.id)
@@ -801,6 +804,7 @@ class AsyncCendry(_BaseCendry):
 
     async def save(self, instance: T, *, parent: Model | None = None) -> str:
         """Save (upsert) a document. Returns the document ID."""
+        apply_auto_timestamps(instance)
         validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
         doc_ref = self._backend.get_doc_ref(col_ref, instance.id)
@@ -815,6 +819,7 @@ class AsyncCendry(_BaseCendry):
 
     async def create(self, instance: T, *, parent: Model | None = None) -> str:
         """Create a document. Raises if it already exists. Returns the document ID."""
+        apply_auto_timestamps(instance)
         validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
         doc_ref = self._backend.get_doc_ref(col_ref, instance.id)
