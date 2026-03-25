@@ -1,11 +1,17 @@
-from unittest.mock import AsyncMock, MagicMock
+import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cendry import CendryError
+from cendry import Cendry, CendryError, Field, Model, field
 from cendry.batch import AsyncBatch, Batch
 from cendry.types import default_registry
 from tests.conftest import SF_DATA, City
+
+
+class TimestampedEvent(Model, collection="ts_events"):
+    title: Field[str]
+    updated_at: Field[datetime.datetime | None] = field(auto_now=True)
 
 
 def make_batch_and_client():
@@ -299,3 +305,24 @@ async def test_async_batch_delete_by_class_and_id():
     batch.delete(City, "SF")
 
     fs_batch.delete.assert_called_once()
+
+
+# --- auto_timestamps integration ---
+
+
+@patch("cendry._writes.apply_auto_timestamps")
+def test_batch_save_calls_apply_auto_timestamps(mock_apply, mock_firestore_client: MagicMock):
+    ctx = Cendry(client=mock_firestore_client)
+    with ctx.batch() as batch:
+        event = TimestampedEvent(title="test")
+        batch.save(event)
+    mock_apply.assert_called_once_with(event)
+
+
+@patch("cendry._writes.apply_auto_timestamps")
+def test_batch_create_calls_apply_auto_timestamps(mock_apply, mock_firestore_client: MagicMock):
+    ctx = Cendry(client=mock_firestore_client)
+    with ctx.batch() as batch:
+        event = TimestampedEvent(title="test")
+        batch.create(event)
+    mock_apply.assert_called_once_with(event)

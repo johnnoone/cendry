@@ -6,6 +6,7 @@ from typing import Any, TypeVar, overload
 from .exceptions import CendryError
 from .model import Model
 from .serialize import (
+    apply_auto_timestamps,
     resolve_field_hint,
     resolve_field_path,
     serialize_update_value,
@@ -45,6 +46,7 @@ class WritesMixin:
 
     def save(self, instance: T, *, parent: Model | None = None) -> None:
         """Queue a save (upsert). Mutates instance.id if None."""
+        apply_auto_timestamps(instance)
         validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
         is_new = instance.id is None
@@ -55,6 +57,7 @@ class WritesMixin:
 
     def create(self, instance: T, *, parent: Model | None = None) -> None:
         """Queue a create (insert only). Mutates instance.id if None."""
+        apply_auto_timestamps(instance)
         validate_required_fields(instance)
         col_ref = self._get_collection_ref(type(instance), parent)
         is_new = instance.id is None
