@@ -6,13 +6,35 @@
 
 | Category | Types |
 |----------|-------|
-| Scalars | `str`, `int`, `float`, `bool`, `bytes`, `Decimal`, `datetime` |
+| Scalars | `str`, `int`, `float`, `bool`, `bytes`, `datetime.datetime` |
+| Scalars with built-in handlers | `Decimal`, `datetime.date`, `datetime.time` |
 | Firestore SDK | `GeoPoint`, `DocumentReference` |
 | Containers | `list[T]`, `set[T]`, `tuple[T, ...]`, `dict[str, V]` |
 | Structured | `Map`, dataclasses, `TypedDict` |
 | Enums | `enum.Enum`, `IntEnum`, `StrEnum` |
 | Optional | `T | None` |
 | Third-party | pydantic, attrs, msgspec (if installed) |
+
+### Built-in handlers
+
+Firestore cannot store `Decimal`, `datetime.date`, or `datetime.time` natively. Cendry registers handlers for these types automatically — no manual registration needed.
+
+| Python type | Stored as | Round-trip |
+|-------------|-----------|------------|
+| `Decimal` | `str` | Lossless |
+| `datetime.date` | `datetime` at midnight UTC | Exact |
+| `datetime.time` | `datetime` on 1970-01-01 UTC | Exact |
+
+```python
+class Event(Model, collection="events"):
+    price: Field[Decimal]           # stored as "123.45"
+    day: Field[datetime.date]       # stored as 2024-06-15T00:00:00Z
+    start: Field[datetime.time]     # stored as 1970-01-01T14:30:00Z
+```
+
+!!! tip "Same convention as NDB"
+
+    `datetime.date` and `datetime.time` follow Google NDB's `DateProperty` and `TimeProperty` conventions.
 
 ## Register a custom type with a handler
 

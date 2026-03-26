@@ -237,6 +237,49 @@ class TypeRegistry:
 # Global default registry
 default_registry = TypeRegistry()
 
+# Built-in handlers for types that Firestore cannot encode natively.
+# Follows NDB conventions:
+#   DateProperty   → datetime at midnight UTC
+#   TimeProperty   → datetime on epoch date (1970-01-01) UTC
+#   Decimal        → string (lossless round-trip)
+
+_EPOCH_DATE = datetime.date(1970, 1, 1)
+
+
+class _DateHandler(BaseTypeHandler):
+    """Store ``datetime.date`` as a ``datetime.datetime`` at midnight UTC."""
+
+    def serialize(self, value: datetime.date) -> datetime.datetime:
+        return datetime.datetime(value.year, value.month, value.day, tzinfo=datetime.UTC)
+
+    def deserialize(self, value: datetime.datetime) -> datetime.date:
+        return value.date()
+
+
+class _TimeHandler(BaseTypeHandler):
+    """Store ``datetime.time`` as a ``datetime.datetime`` on 1970-01-01 UTC."""
+
+    def serialize(self, value: datetime.time) -> datetime.datetime:
+        return datetime.datetime.combine(_EPOCH_DATE, value, tzinfo=datetime.UTC)
+
+    def deserialize(self, value: datetime.datetime) -> datetime.time:
+        return value.time()
+
+
+class _DecimalHandler(BaseTypeHandler):
+    """Store ``Decimal`` as a string for lossless round-trip."""
+
+    def serialize(self, value: Decimal) -> str:
+        return str(value)
+
+    def deserialize(self, value: str) -> Decimal:
+        return Decimal(value)
+
+
+default_registry.register(datetime.date, handler=_DateHandler())
+default_registry.register(datetime.time, handler=_TimeHandler())
+default_registry.register(Decimal, handler=_DecimalHandler())
+
 # Third-party structured type detection
 try:
     from pydantic import BaseModel as PydanticBaseModel  # type: ignore[import-not-found]

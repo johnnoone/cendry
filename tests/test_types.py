@@ -418,3 +418,60 @@ def test_register_type_with_kwargs():
     register_type(Currency, deserialize=lambda v: Currency())
     handler = default_registry.get_handler(Currency)
     assert handler is not None
+
+
+# --- Built-in handlers (date, time, Decimal) ---
+
+
+def test_date_handler_serialize():
+    from cendry.types import _DateHandler
+
+    handler = _DateHandler()
+    result = handler.serialize(datetime.date(2024, 6, 15))
+    assert result == datetime.datetime(2024, 6, 15, tzinfo=datetime.UTC)
+
+
+def test_date_handler_deserialize():
+    from cendry.types import _DateHandler
+
+    handler = _DateHandler()
+    result = handler.deserialize(datetime.datetime(2024, 6, 15, tzinfo=datetime.UTC))
+    assert result == datetime.date(2024, 6, 15)
+
+
+def test_time_handler_serialize():
+    from cendry.types import _TimeHandler
+
+    handler = _TimeHandler()
+    result = handler.serialize(datetime.time(14, 30, 45))
+    assert result == datetime.datetime(1970, 1, 1, 14, 30, 45, tzinfo=datetime.UTC)
+
+
+def test_time_handler_deserialize():
+    from cendry.types import _TimeHandler
+
+    handler = _TimeHandler()
+    result = handler.deserialize(datetime.datetime(1970, 1, 1, 14, 30, 45, tzinfo=datetime.UTC))
+    assert result == datetime.time(14, 30, 45)
+
+
+def test_decimal_handler_serialize():
+    from cendry.types import _DecimalHandler
+
+    handler = _DecimalHandler()
+    assert handler.serialize(Decimal("123.456")) == "123.456"
+
+
+def test_decimal_handler_deserialize():
+    from cendry.types import _DecimalHandler
+
+    handler = _DecimalHandler()
+    assert handler.deserialize("123.456") == Decimal("123.456")
+
+
+def test_builtin_handlers_in_default_registry():
+    from cendry.types import default_registry
+
+    assert default_registry.get_handler(datetime.date) is not None
+    assert default_registry.get_handler(datetime.time) is not None
+    assert default_registry.get_handler(Decimal) is not None
