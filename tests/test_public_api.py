@@ -28,6 +28,7 @@ def test_public_api_exports():
         "FieldFilter",
         "FirestoreAsyncBackend",
         "FirestoreBackend",
+        "FirestoreValue",
         "Increment",
         "Map",
         "Maximum",

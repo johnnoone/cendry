@@ -9,6 +9,20 @@ from typing import Any, Protocol, get_args, get_origin, is_typeddict, runtime_ch
 from google.cloud.firestore_v1._helpers import GeoPoint
 from google.cloud.firestore_v1.document import DocumentReference
 
+type FirestoreValue = (
+    None
+    | bool
+    | int
+    | float
+    | str
+    | bytes
+    | datetime.datetime
+    | GeoPoint
+    | DocumentReference
+    | list["FirestoreValue"]
+    | dict[str, "FirestoreValue"]
+)
+
 _SCALAR_TYPES: frozenset[type] = frozenset(
     {
         str,
@@ -33,6 +47,11 @@ class TypeHandler(Protocol):
     """Protocol defining the contract for type handlers.
 
     Any class implementing ``serialize`` and ``deserialize`` satisfies this protocol.
+
+    ``serialize`` must return a :data:`FirestoreValue` — a type that Firestore
+    can store natively (``None``, ``bool``, ``int``, ``float``, ``str``,
+    ``bytes``, ``datetime.datetime``, ``GeoPoint``, ``DocumentReference``,
+    or nested ``list`` / ``dict[str, ...]`` of these).
     """
 
     def serialize(self, value: Any) -> Any: ...
@@ -44,14 +63,23 @@ class BaseTypeHandler:
 
     Subclass and override what you need. New methods can be added
     in the future without breaking existing handlers.
+
+    ``serialize`` should return a :data:`FirestoreValue`::
+
+        class MoneyHandler(BaseTypeHandler):
+            def serialize(self, value: Money) -> dict[str, int | str]:
+                return {"amount": value.amount, "currency": value.currency}
+
+            def deserialize(self, value: dict[str, int | str]) -> Money:
+                return Money(amount=value["amount"], currency=value["currency"])
     """
 
     def serialize(self, value: Any) -> Any:
-        """Convert a Python value to a Firestore-compatible value."""
+        """Convert a Python value to a :data:`FirestoreValue`."""
         return value
 
     def deserialize(self, value: Any) -> Any:
-        """Convert a Firestore value to a Python value."""
+        """Convert a :data:`FirestoreValue` back to a Python value."""
         return value
 
 

@@ -22,7 +22,7 @@ from .model import Field, FieldDescriptor, Map, Model, field
 from .query import Asc, AsyncProjectedQuery, AsyncQuery, Desc, ProjectedQuery, Query
 from .serialize import from_dict, to_dict
 from .transaction import AsyncTxn, Txn
-from .types import BaseTypeHandler, TypeHandler, TypeRegistry, register_type
+from .types import BaseTypeHandler, FirestoreValue, TypeHandler, TypeRegistry, register_type
 
 __all__ = [
     "DELETE_FIELD",
@@ -52,6 +52,7 @@ __all__ = [
     "FieldFilter",
     "FirestoreAsyncBackend",
     "FirestoreBackend",
+    "FirestoreValue",
     "Increment",
     "Map",
     "Maximum",

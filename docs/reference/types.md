@@ -1,5 +1,9 @@
 # Types Reference
 
+::: cendry.types.FirestoreValue
+
+---
+
 ::: cendry.types.TypeRegistry
     options:
       members:
