@@ -9,7 +9,7 @@ from cendry import (
     # Context
     Cendry, AsyncCendry,
     # Query
-    Query, AsyncQuery, Asc, Desc,
+    Query, AsyncQuery, ProjectedQuery, AsyncProjectedQuery, Asc, Desc,
     # Batch & Transactions
     Batch, AsyncBatch, Txn, AsyncTxn,
     # Filters
@@ -20,7 +20,10 @@ from cendry import (
     # Serialization
     from_dict, to_dict,
     # Type system
-    TypeHandler, BaseTypeHandler, TypeRegistry, register_type,
+    TypeHandler, BaseTypeHandler, TypeRegistry, FirestoreValue, register_type,
+    # Backends
+    Backend, AsyncBackend, FirestoreBackend, FirestoreAsyncBackend,
+    DocResult, WriteResult,
     # Metadata
     get_metadata, DocumentMetadata,
     # Exceptions

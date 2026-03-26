@@ -30,6 +30,22 @@
 
 ---
 
+::: cendry.query.ProjectedQuery
+    options:
+      members:
+        - to_list
+        - first
+
+---
+
+::: cendry.query.AsyncProjectedQuery
+    options:
+      members:
+        - to_list
+        - first
+
+---
+
 ::: cendry.query.Asc
 
 ---

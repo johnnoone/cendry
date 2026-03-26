@@ -20,8 +20,10 @@ graph TB
         H[batch.py<br/>Batch, AsyncBatch]
         I[transaction.py<br/>Txn, AsyncTxn]
         J[metadata.py<br/>get_metadata]
-        K[types.py<br/>TypeRegistry]
+        K[types.py<br/>TypeRegistry, FirestoreValue]
         L[_writes.py<br/>WritesMixin]
+        P[backend.py<br/>Backend, AsyncBackend]
+        Q[backends/<br/>FirestoreBackend, DatastoreBackend]
     end
 
     subgraph google-cloud-firestore
@@ -40,7 +42,9 @@ graph TB
     H --> L
     I --> L
     L --> G
-    E --> M
+    E --> P
+    P --> Q
+    Q --> M
     H --> N
     I --> N
     F --> O
@@ -55,9 +59,12 @@ graph LR
     context --> batch
     context --> transaction
     context --> metadata
+    context --> backend
+    context --> backends
     batch --> _writes
     transaction --> _writes
     _writes --> serialize
+    _writes --> backends
     query --> serialize
     query --> metadata
     serialize --> types
@@ -66,6 +73,7 @@ graph LR
     context --> types
     context --> filters
     context --> exceptions
+    backends --> backend
 ```
 
 ## Data flow
@@ -218,5 +226,16 @@ Shared write logic via `WritesMixin`:
 
 ### `types.py`
 
+- **`FirestoreValue`** — type alias for values Firestore can natively store (`None | bool | int | float | str | bytes | datetime | GeoPoint | DocumentReference | list | dict`). Referenced in handler docstrings to guide custom type authors.
 - **`TypeRegistry`** — validates `Field[T]` annotations at class definition time.
-- **`default_registry`** — global singleton with built-in types + optional third-party detection.
+- **`default_registry`** — global singleton with built-in types, built-in handlers (`Decimal` → string, `datetime.date` → datetime at midnight UTC, `datetime.time` → datetime on epoch date), and optional third-party detection (pydantic, attrs, msgspec).
+
+### `backend.py`
+
+- **`Backend`** / **`AsyncBackend`** — protocols defining the contract for pluggable database backends. Every Firestore operation goes through a backend method.
+
+### `backends/`
+
+- **`FirestoreBackend`** / **`FirestoreAsyncBackend`** — default implementations wrapping `google-cloud-firestore`. Each method is a thin delegation (2–5 lines).
+- **`DatastoreBackend`** — migration bridge for Firestore in Datastore mode. Supports the common subset and raises clear errors for Native-only features.
+- **`DocResult`** / **`WriteResult`** — backend-agnostic result types.

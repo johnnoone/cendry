@@ -130,6 +130,20 @@ The `DatastoreBackend` implements only the features that have a natural equivale
 
 **`create()` and `update()` are not atomic** outside transactions on the Datastore backend. Datastore has no "create if not exists" or partial update primitive. Cendry implements these as `get + check + put` (TOCTOU race). This is documented and users are advised to wrap these calls in transactions.
 
+## Built-in handlers for Decimal, date, and time
+
+Firestore cannot store `Decimal`, `datetime.date`, or `datetime.time` natively. Cendry registers handlers for these types in the default registry so they work out of the box:
+
+| Type | Stored as | Convention |
+|------|-----------|------------|
+| `Decimal` | `str` | Lossless round-trip — avoids float precision loss |
+| `datetime.date` | `datetime` at midnight UTC | Matches NDB's `DateProperty` |
+| `datetime.time` | `datetime` on 1970-01-01 UTC | Matches NDB's `TimeProperty` |
+
+**Why built-in instead of user-registered?** These are standard library types that Cendry lists as supported scalars. Requiring users to register handlers for types the library already advertises as supported would be a poor experience — `Field[Decimal]` should just work. The NDB conventions are well-understood and unsurprising.
+
+**Why `str` for Decimal instead of `float`?** Firestore stores numbers as IEEE 754 double-precision floats. `Decimal("0.1")` → `float` → `0.1000000000000000055511151...` — the round-trip is lossy. String storage preserves exact precision.
+
 ## Type validation at class definition
 
 Invalid `Field[T]` types raise `TypeError` immediately when the class is defined, not when data is queried.

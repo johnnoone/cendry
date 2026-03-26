@@ -125,7 +125,10 @@ pip install cendry
 | **Transactions** | `ctx.transaction(fn)` — auto-retry, read-then-write atomicity |
 | **Optimistic locking** | `ctx.update(city, {...}, if_unchanged=True)` — precondition-based |
 | **Serialization** | `from_dict(City, {...})` and `to_dict(city)` |
+| **Auto-timestamps** | `field(auto_now=True)` — automatic creation/update times |
+| **Built-in type handlers** | `Field[Decimal]`, `Field[datetime.date]`, `Field[datetime.time]` — just work |
 | **Custom types** | `register_type(Money, deserialize=...)` |
+| **Datastore migration** | `Cendry(backend=DatastoreBackend(...))` — validate, then swap |
 | **Context manager** | `with Cendry() as ctx:` — auto-closes client |
 
 ---

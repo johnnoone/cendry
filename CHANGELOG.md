@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Built-in type handlers** — `Decimal`, `datetime.date`, and `datetime.time` now have built-in handlers in the default registry, following NDB conventions (`DateProperty` → datetime at midnight UTC, `TimeProperty` → datetime on 1970-01-01 UTC, `Decimal` → string for lossless round-trip). No manual `register_type()` needed.
+- **`FirestoreValue` type alias** — documents the set of types Firestore can natively store; referenced in `TypeHandler` and `BaseTypeHandler` docstrings to guide handler authors
+- **Integration tests for all Field[T] types** — 18 tests proving save→get round-trips for every supported type (scalars, containers, enums, maps, custom handlers)
+
 ## [0.4.0] — 2026-03-25
 
 ### Added

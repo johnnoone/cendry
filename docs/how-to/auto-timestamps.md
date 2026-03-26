@@ -37,6 +37,10 @@ class Event(Model, collection="events"):
     at_time: Field[datetime.time | None] = field(auto_now=True)
 ```
 
+!!! info "Built-in Firestore storage"
+
+    `datetime.date` and `datetime.time` have built-in handlers — Cendry automatically converts them to Firestore-compatible `datetime.datetime` values (date at midnight UTC, time on 1970-01-01 UTC). No manual `register_type()` needed. See [Built-in handlers](type-validation.md#built-in-handlers).
+
 ## Rules
 
 - `auto_now` and `auto_now_add` are **mutually exclusive** on the same field
